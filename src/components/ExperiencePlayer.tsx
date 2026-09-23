@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
+import { getSharedAudio } from "@/engine/audio";
 import type { EngineController } from "@/engine/runtime";
 import {
   getHapticsPref,
@@ -120,6 +122,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
       <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 sm:p-4">
         <Link
           href="/playground"
+          onClick={() => playUiClick()}
           className="pointer-events-auto rounded-full bg-[color-mix(in_oklab,var(--bg)_72%,transparent)] px-3 py-2 text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
           aria-label="Exit to playground"
         >
@@ -130,9 +133,19 @@ export function ExperiencePlayer({ experienceId }: Props) {
             type="button"
             onClick={() => {
               const next = !muted;
-              setMuted(next);
-              setMutedPref(next);
-              engineRef.current?.setMuted(next);
+              if (next) {
+                playUiClick();
+                setMuted(true);
+                setMutedPref(true);
+                getSharedAudio().setMuted(true);
+                engineRef.current?.setMuted(true);
+              } else {
+                setMuted(false);
+                setMutedPref(false);
+                getSharedAudio().setMuted(false);
+                engineRef.current?.setMuted(false);
+                playUiClick();
+              }
             }}
             className="rounded-full bg-[color-mix(in_oklab,var(--bg)_72%,transparent)] px-3 py-2 text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
             aria-pressed={muted}
@@ -143,6 +156,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
           <button
             type="button"
             onClick={() => {
+              playUiClick();
               const next = !hapticsOn;
               setHapticsOn(next);
               setHapticsPref(next);
@@ -156,7 +170,10 @@ export function ExperiencePlayer({ experienceId }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => setFav(toggleFavourite(experienceId))}
+            onClick={() => {
+              playUiClick();
+              setFav(toggleFavourite(experienceId));
+            }}
             className="rounded-full bg-[color-mix(in_oklab,var(--bg)_72%,transparent)] px-3 py-2 text-sm backdrop-blur-md transition hover:text-[var(--ink)]"
             aria-pressed={fav}
             aria-label={fav ? "Remove favourite" : "Favourite"}
@@ -170,7 +187,10 @@ export function ExperiencePlayer({ experienceId }: Props) {
       {hintVisible && (
         <button
           type="button"
-          onClick={() => setHintVisible(false)}
+          onClick={() => {
+            playUiClick();
+            setHintVisible(false);
+          }}
           className="absolute bottom-6 left-1/2 z-10 max-w-[90vw] -translate-x-1/2 rounded-full bg-[color-mix(in_oklab,var(--bg)_75%,transparent)] px-4 py-2 text-center text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
         >
           {meta.hint}

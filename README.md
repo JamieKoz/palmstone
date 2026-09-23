@@ -13,17 +13,21 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Also works with `npm install && npm run dev`.
 
-## What's in v0
+## What's shipping
 
-- Landing (brand + Enter playground)
-- Gallery of **10** experiences with local favourites
-- Fullscreen play with mute, haptics toggle, and favourite
-- Shared PixiJS v8 engine + Web Audio + Vibration API
+- Landing (brand + Enter / Continue)
+- Gallery with favourites, WebGL filter, continue strip
+- Fullscreen play with mute, haptics, favourite
+- PixiJS experiences + **native WebGL2** audio-reactive experiences
+- Generative ambient beds (Web Audio analyser) — mute-safe visuals
+- localStorage favourites / recents (Phase 1 soft personalization; cloud accounts later)
 
 ### Experiences
 
 | Name | Modality |
 |------|----------|
+| Mesh Lattice | WebGL (audio mesh) |
+| Aurora Veil | WebGL (shader field) |
 | Sand Tray | Granular |
 | Silk Fluid | Fluid |
 | Ripple Pool | Fluid |
@@ -35,4 +39,4 @@ Also works with `npm install && npm run dev`.
 | Stone Polish | Texture |
 | Slider Loom | Mechanical |
 
-No accounts. No paywall. Sound and haptics are always free.
+No accounts yet. No paywall. Sound and haptics are always free.

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Figtree, Fraunces } from "next/font/google";
+import { SiteAudio } from "@/components/SiteAudio";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -25,7 +26,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${fraunces.variable} ${figtree.variable} h-full antialiased`}
     >
-      <body className="min-h-full font-[family-name:var(--font-body)]">{children}</body>
+      <body className="min-h-full font-[family-name:var(--font-body)]">
+        <SiteAudio />
+        {children}
+      </body>
     </html>
   );
 }

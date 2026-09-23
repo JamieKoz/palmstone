@@ -3,6 +3,24 @@ import type { ExperienceId, ExperienceMeta } from "./types";
 /** Pure metadata — safe for server components / SSR. */
 export const CATALOG: ExperienceMeta[] = [
   {
+    id: "mesh-lattice",
+    name: "Mesh Lattice",
+    modality: "WebGL",
+    tagline: "Perspective audio mesh — music-reactive lattice you can warp.",
+    hint: "Drag to warp. Generative music drives the grid (mute-safe).",
+    accent: "#6db8b0",
+    badge: "WebGL",
+  },
+  {
+    id: "aurora-veil",
+    name: "Aurora Veil",
+    modality: "WebGL",
+    tagline: "Full-screen shader veil — soft bands that breathe with sound.",
+    hint: "Touch to bloom. Generative music shapes the field.",
+    accent: "#8fbc8f",
+    badge: "WebGL",
+  },
+  {
     id: "sand-tray",
     name: "Sand Tray",
     modality: "Granular",
@@ -91,3 +109,5 @@ export function getMeta(id: string): ExperienceMeta | undefined {
 export function isExperienceId(id: string): id is ExperienceId {
   return CATALOG.some((e) => e.id === id);
 }
+
+export const MODALITIES = Array.from(new Set(CATALOG.map((e) => e.modality)));
