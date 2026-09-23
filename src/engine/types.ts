@@ -32,7 +32,7 @@ export interface AudioBus {
    * Start a looping generative ambient bed (for audio-reactive visuals).
    * Safe to call repeatedly; no-ops when muted until unmuted.
    */
-  startBed(style?: "lattice" | "aurora"): void;
+  startBed(style?: "lattice" | "aurora" | "peace"): void;
   stopBed(): void;
   /** Fill `out` with 0–1 band energies (length used as bin count). */
   getSpectrum(out: Float32Array): void;

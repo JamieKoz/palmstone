@@ -1,5 +1,5 @@
 import { Application, Container } from "pixi.js";
-import { createAudioBus } from "./audio";
+import { createAudioBus, getSharedAudio } from "./audio";
 import { createHapticsBus } from "./haptics";
 import type { ExperienceHandle, ExperienceModule } from "./types";
 import { getHapticsPref, getMuted } from "./storage";
@@ -76,7 +76,7 @@ async function startPixi(
   window.addEventListener("resize", onResize);
 
   const unlock = () => {
-    void audio.resume();
+    void getSharedAudio().unlockAndStartPeace();
   };
   host.addEventListener("pointerdown", unlock, { once: true });
 
@@ -163,7 +163,7 @@ async function startWebGL(
   gl.viewport(0, 0, canvas.width, canvas.height);
 
   const unlock = () => {
-    void audio.resume();
+    void getSharedAudio().unlockAndStartPeace();
   };
   host.addEventListener("pointerdown", unlock, { once: true });
 

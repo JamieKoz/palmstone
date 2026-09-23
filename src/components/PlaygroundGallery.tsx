@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { playUiClick } from "@/components/SiteAudio";
 import { CATALOG, getMeta, MODALITIES } from "@/engine/catalog";
 import { getFavourites, getRecents, toggleFavourite } from "@/engine/storage";
 
@@ -50,6 +51,7 @@ export function PlaygroundGallery() {
           <div>
             <Link
               href="/"
+              onClick={() => playUiClick()}
               className="font-[family-name:var(--font-display)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl"
             >
               Palmstone
@@ -63,6 +65,7 @@ export function PlaygroundGallery() {
         {continueMeta && (
           <Link
             href={`/playground/${continueMeta.id}`}
+            onClick={() => playUiClick()}
             className="mb-8 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
             style={{
               background: "color-mix(in oklab, var(--panel) 70%, transparent)",
@@ -90,7 +93,10 @@ export function PlaygroundGallery() {
             <button
               key={id}
               type="button"
-              onClick={() => setFilter(id)}
+              onClick={() => {
+                playUiClick();
+                setFilter(id);
+              }}
               className={`rounded-full px-4 py-2 text-sm transition ${
                 filter === id
                   ? id === "favourites"
@@ -114,6 +120,7 @@ export function PlaygroundGallery() {
                 <li key={exp.id} className="group relative">
                   <Link
                     href={`/playground/${exp.id}`}
+                    onClick={() => playUiClick()}
                     className="gallery-row flex items-center gap-4 rounded-2xl px-4 py-4 transition sm:gap-6 sm:px-5 sm:py-5"
                     style={{ animationDelay: `${i * 40}ms` }}
                   >
@@ -152,6 +159,7 @@ export function PlaygroundGallery() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      playUiClick();
                       toggleFavourite(exp.id);
                       setFavs(getFavourites());
                     }}

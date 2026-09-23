@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
 import { getRecents } from "@/engine/storage";
 
@@ -25,6 +26,7 @@ export function LandingCTA() {
         <>
           <Link
             href={`/playground/${continueId}`}
+            onClick={() => playUiClick()}
             className="inline-flex items-center gap-2 rounded-full bg-[var(--jade)] px-7 py-3.5 text-base font-medium text-[var(--bg)] transition hover:brightness-110 active:scale-[0.98]"
           >
             Continue {continueName}
@@ -32,6 +34,7 @@ export function LandingCTA() {
           </Link>
           <Link
             href="/playground"
+            onClick={() => playUiClick()}
             className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-base text-[var(--mist)] transition hover:text-[var(--ink)]"
           >
             Browse all
@@ -40,6 +43,7 @@ export function LandingCTA() {
       ) : (
         <Link
           href="/playground"
+          onClick={() => playUiClick()}
           className="inline-flex items-center gap-2 rounded-full bg-[var(--jade)] px-7 py-3.5 text-base font-medium text-[var(--bg)] transition hover:brightness-110 active:scale-[0.98]"
         >
           Enter playground
