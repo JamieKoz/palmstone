@@ -40,13 +40,30 @@ export function ExperiencePlayer({ experienceId }: Props) {
     pushRecent(experienceId);
   }, [experienceId]);
 
-  // Phase 1 habit: accumulate modality play time while this experience is mounted
+  // Phase 1 habit: accumulate modality play time (flush on hide/unload + interval —
+  // hard navigations often skip React cleanup alone)
   useEffect(() => {
     if (!meta) return;
-    const started = performance.now();
+    const modality = meta.modality;
+    let last = performance.now();
+    const flush = () => {
+      const now = performance.now();
+      const seconds = (now - last) / 1000;
+      last = now;
+      recordModalityPlay(modality, seconds);
+    };
+    const interval = window.setInterval(flush, 4000);
+    const onPageHide = () => flush();
+    const onVis = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVis);
     return () => {
-      const seconds = (performance.now() - started) / 1000;
-      recordModalityPlay(meta.modality, seconds);
+      window.clearInterval(interval);
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVis);
+      flush();
     };
   }, [experienceId, meta]);
 
