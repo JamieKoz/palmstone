@@ -82,9 +82,9 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         const ly = py - sy;
         const c = Math.floor((lx / stoneW) * COLS);
         const r = Math.floor((ly / stoneH) * ROWS);
-        const rad = 4;
+        const rad = 5;
         // Aggressive polish under finger so change is obvious within a stroke
-        const rate = 0.22 * Math.min(1.4, speed / 180 + 0.45);
+        const rate = 0.38 * Math.min(1.6, speed / 140 + 0.55);
         for (let dy = -rad; dy <= rad; dy++) {
           for (let dx = -rad; dx <= rad; dx++) {
             const rr = r + dy;
