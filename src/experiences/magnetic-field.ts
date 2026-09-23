@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Particle = { x: number; y: number; vx: number; vy: number };
@@ -13,6 +14,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   root.addChild(layer);
   const g = new Graphics();
   layer.addChild(g);
+
+  const host = ctx.app.canvas.parentElement ?? document.body;
+  const hud = createHud(host);
+  /** Gravity / field strength multiplier */
+  let gravityMul = 1;
+  hud.slider("Gravity", 0.35, 2.4, gravityMul, (v) => {
+    gravityMul = v;
+  });
 
   const particles: Particle[] = Array.from({ length: 90 }, () => ({
     x: Math.random() * w,
@@ -52,10 +61,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     if (dragWell != null) {
       haptics.tap(12);
       audio.click(0.3, wells[dragWell].strength > 0 ? 1.1 : 0.7);
-    } else if (e.shiftKey || e.altKey) {
-      wells.push({ x: px, y: py, strength: Math.random() > 0.5 ? 1 : -0.9 });
-      if (wells.length > 5) wells.shift();
-      audio.pulse(0.3);
     }
   };
   const onMove = (e: PointerEvent) => {
@@ -83,7 +88,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   el.addEventListener("dblclick", onDbl);
   el.style.touchAction = "none";
 
-  // double-tap for mobile
   let lastTap = 0;
   const onPointerDownTap = (e: PointerEvent) => {
     const t = performance.now();
@@ -101,6 +105,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         wells[dragWell].y = py;
       }
 
+      const gScale = gravityMul;
       let energy = 0;
       for (const p of particles) {
         let ax = 0;
@@ -110,12 +115,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
           const dy = well.y - p.y;
           const d2 = dx * dx + dy * dy + 80;
           const d = Math.sqrt(d2);
-          const f = (well.strength * 22000) / d2;
+          const f = (well.strength * 22000 * gScale) / d2;
           ax += (dx / d) * f;
           ay += (dy / d) * f;
-          // soft orbit tangential nudge
-          ax += (-dy / d) * well.strength * 8;
-          ay += (dx / d) * well.strength * 8;
+          ax += (-dy / d) * well.strength * 8 * gScale;
+          ay += (dx / d) * well.strength * 8 * gScale;
         }
         p.vx = (p.vx + ax * dt) * 0.985;
         p.vy = (p.vy + ay * dt) * 0.985;
@@ -141,9 +145,10 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       for (const well of wells) {
         const attract = well.strength > 0;
         const color = attract ? 0x7eb6c9 : 0xc97e6a;
+        const reach = 14 + gravityMul * 8;
         for (let i = 3; i >= 1; i--) {
-          g.circle(well.x, well.y, 18 * i);
-          g.stroke({ width: 1.5, color, alpha: 0.12 * (4 - i) });
+          g.circle(well.x, well.y, reach * i);
+          g.stroke({ width: 1.5, color, alpha: 0.1 * (4 - i) * (0.7 + gravityMul * 0.2) });
         }
         g.circle(well.x, well.y, 10);
         g.fill({ color, alpha: 0.85 });
@@ -175,6 +180,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       window.removeEventListener("pointerup", onUp);
       el.removeEventListener("dblclick", onDbl);
       el.removeEventListener("pointerdown", onPointerDownTap);
+      hud.destroy();
       layer.destroy({ children: true });
     },
   };
@@ -185,7 +191,7 @@ export const magneticField: ExperienceModule = {
   name: "Magnetic Field",
   modality: "Force",
   tagline: "Drag attract and repel wells through a field of particles.",
-  hint: "Drag wells. Double-tap empty space to place another.",
+  hint: "Drag wells. Gravity slider scales the field. Double-tap to place another.",
   accent: "#7eb6c9",
   mount,
 };

@@ -7,7 +7,7 @@ export const CATALOG: ExperienceMeta[] = [
     name: "Sand Tray",
     modality: "Granular",
     tagline: "Pour, rake, pile — grain weight under the thumb.",
-    hint: "Drag to rake. Flick to scatter.",
+    hint: "Drag to rake. Use Pour for continuous fall, Reset to refill.",
     accent: "#c4a574",
   },
   {
@@ -39,7 +39,7 @@ export const CATALOG: ExperienceMeta[] = [
     name: "Magnetic Field",
     modality: "Force",
     tagline: "Drag attract and repel wells through a field of particles.",
-    hint: "Drag wells. Double-tap empty space to place another.",
+    hint: "Drag wells. Gravity slider scales the field. Double-tap to place another.",
     accent: "#7eb6c9",
   },
   {
@@ -55,7 +55,7 @@ export const CATALOG: ExperienceMeta[] = [
     name: "Orbit Beads",
     modality: "Spatial",
     tagline: "Fling beads into stable orbits around gravity wells.",
-    hint: "Drag and fling a bead. Watch orbits form.",
+    hint: "Drag and fling a bead. Use Gravity to pull harder.",
     accent: "#8aa4c8",
   },
   {
@@ -79,7 +79,7 @@ export const CATALOG: ExperienceMeta[] = [
     name: "Slider Loom",
     modality: "Mechanical",
     tagline: "Multi-slider weave — snap points and soft resistance.",
-    hint: "Slide each bar. Feel the snap points.",
+    hint: "Slide each bar. Watch the weave angles shift.",
     accent: "#8fa894",
   },
 ];
