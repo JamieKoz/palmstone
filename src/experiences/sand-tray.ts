@@ -1,4 +1,6 @@
 import { Container, Graphics } from "pixi.js";
+import { rgb } from "@/engine/color";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Grain = {
@@ -20,18 +22,43 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   const g = new Graphics();
   layer.addChild(g);
 
+  const host = ctx.app.canvas.parentElement ?? document.body;
+  const hud = createHud(host);
+
+  let continuousFall = false;
+  let fallAcc = 0;
+
   const N = Math.min(1400, Math.floor((w * h) / 900));
   const grains: Grain[] = [];
-  for (let i = 0; i < N; i++) {
-    grains.push({
-      x: Math.random() * w,
-      y: h * 0.55 + Math.random() * h * 0.4,
-      vx: 0,
+
+  function makeGrain(x?: number, y?: number): Grain {
+    return {
+      x: x ?? Math.random() * w,
+      y: y ?? h * 0.55 + Math.random() * h * 0.4,
+      vx: (Math.random() - 0.5) * 20,
       vy: 0,
       r: 1.2 + Math.random() * 1.8,
       shade: 0.55 + Math.random() * 0.45,
-    });
+    };
   }
+
+  function resetGrains() {
+    grains.length = 0;
+    for (let i = 0; i < N; i++) grains.push(makeGrain());
+  }
+  resetGrains();
+
+  hud.toggle("Pouring", "Pour", false, (on) => {
+    continuousFall = on;
+    void audio.resume();
+    haptics.tap(8);
+  });
+  hud.button("Reset", () => {
+    resetGrains();
+    void audio.resume();
+    audio.grain(0.4, 0.6);
+    haptics.tap(12);
+  });
 
   let pointerDown = false;
   let px = 0;
@@ -73,6 +100,23 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       lastPx = px;
       lastPy = py;
 
+      if (continuousFall) {
+        fallAcc += dt;
+        while (fallAcc > 0.012) {
+          fallAcc -= 0.012;
+          // Recycle lowest grains into a pour stream from the top
+          let worst = 0;
+          for (let i = 1; i < grains.length; i++) {
+            if (grains[i].y > grains[worst].y) worst = i;
+          }
+          const g0 = grains[worst];
+          g0.x = w * 0.35 + Math.random() * w * 0.3;
+          g0.y = -4 - Math.random() * 20;
+          g0.vx = (Math.random() - 0.5) * 40;
+          g0.vy = 40 + Math.random() * 80;
+        }
+      }
+
       const gravity = 420;
       const brushR = 56;
       let moved = 0;
@@ -109,7 +153,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
           grain.vy *= -0.22;
           grain.vx *= 0.85;
         }
-        if (grain.y < grain.r) {
+        if (grain.y < grain.r && !continuousFall) {
           grain.y = grain.r;
           grain.vy *= -0.3;
         }
@@ -124,7 +168,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       }
 
       g.clear();
-      // tray bed
       g.roundRect(0, h * 0.42, w, h * 0.58, 0);
       g.fill({ color: 0x2a241c, alpha: 1 });
       g.roundRect(8, h * 0.44, w - 16, h * 0.54, 18);
@@ -132,9 +175,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
       for (const grain of grains) {
         const c = Math.floor(0xb0 * grain.shade + 0x40);
-        const color = (c << 16) | ((c * 0.85) << 8) | (c * 0.55);
         g.circle(grain.x, grain.y, grain.r);
-        g.fill({ color, alpha: 0.95 });
+        g.fill({ color: rgb(c, c * 0.85, c * 0.55), alpha: 0.95 });
       }
 
       if (pointerDown) {
@@ -150,6 +192,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      hud.destroy();
       layer.destroy({ children: true });
     },
   };
@@ -160,7 +203,7 @@ export const sandTray: ExperienceModule = {
   name: "Sand Tray",
   modality: "Granular",
   tagline: "Pour, rake, pile — grain weight under the thumb.",
-  hint: "Drag to rake. Flick to scatter.",
+  hint: "Drag to rake. Use Pour for continuous fall, Reset to refill.",
   accent: "#c4a574",
   mount,
 };

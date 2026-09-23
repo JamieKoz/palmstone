@@ -2,13 +2,14 @@ import { Container, Graphics } from "pixi.js";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Slider = {
-  x: number;
   trackY: number;
   trackX0: number;
   trackX1: number;
-  value: number; // 0–1
+  value: number;
   target: number;
   snaps: number[];
+  /** Phase offset so each row weaves differently */
+  phase: number;
 };
 
 function mount(ctx: ExperienceContext): ExperienceHandle {
@@ -24,6 +25,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   const sliders: Slider[] = [];
 
   function layout() {
+    const values = sliders.map((s) => s.value);
+    const targets = sliders.map((s) => s.target);
     sliders.length = 0;
     const n = 6;
     const top = h * 0.18;
@@ -31,15 +34,15 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     for (let i = 0; i < n; i++) {
       const trackY = top + ((bottom - top) * i) / (n - 1);
       const snaps = [0, 0.25, 0.5, 0.75, 1];
-      const value = (i * 0.13) % 1;
+      const value = values[i] ?? (i * 0.13) % 1;
       sliders.push({
-        x: 0,
         trackY,
         trackX0: w * 0.12,
         trackX1: w * 0.88,
         value,
-        target: value,
+        target: targets[i] ?? value,
         snaps,
+        phase: i * 0.9,
       });
     }
   }
@@ -53,7 +56,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       const sx = s.trackX0 + s.value * (s.trackX1 - s.trackX0);
       if (Math.hypot(sx - x, s.trackY - y) < 28) return i;
     }
-    // also allow grabbing track
     for (let i = 0; i < sliders.length; i++) {
       const s = sliders[i];
       if (Math.abs(y - s.trackY) < 18 && x >= s.trackX0 - 10 && x <= s.trackX1 + 10) return i;
@@ -78,7 +80,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   const onUp = () => {
     if (drag != null) {
       const s = sliders[drag];
-      // snap to nearest
       let best = s.snaps[0];
       let bestD = Infinity;
       for (const snap of s.snaps) {
@@ -106,18 +107,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   return {
     update(dt: number) {
       for (const s of sliders) {
-        // soft resistance toward target
         const diff = s.target - s.value;
         const resistance = 0.12 + Math.abs(diff) * 0.05;
         s.value += diff * Math.min(1, resistance * dt * 60);
 
-        // magnetic pull near snaps while dragging
         if (drag != null && sliders[drag] === s) {
           for (const snap of s.snaps) {
             const d = snap - s.value;
-            if (Math.abs(d) < 0.06) {
-              s.value += d * 0.15;
-            }
+            if (Math.abs(d) < 0.06) s.value += d * 0.15;
           }
         }
       }
@@ -126,29 +123,36 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       g.rect(0, 0, w, h);
       g.fill({ color: 0x141816, alpha: 1 });
 
-      // loom threads — vertical weave based on slider values
-      const threads = 24;
+      // Stronger horizontal weave — angles visibly respond to sliders.
+      const threads = 28;
+      const amp = Math.min(w, h) * 0.14;
       for (let i = 0; i < threads; i++) {
         const t = i / (threads - 1);
-        const x = w * 0.12 + t * w * 0.76;
-        g.moveTo(x, h * 0.12);
+        const x0 = w * 0.12 + t * w * 0.76;
+        g.moveTo(x0, h * 0.1);
         for (let s = 0; s < sliders.length; s++) {
           const sl = sliders[s];
-          const offset = (Math.sin(t * Math.PI * 4 + s) * 0.5 + (sl.value - 0.5)) * 18;
-          const x2 = x + offset;
-          g.lineTo(x2, sl.trackY);
+          // Alternating over/under bias + large slider-driven offset
+          const weave =
+            Math.sin(t * Math.PI * 3.2 + sl.phase) * (0.35 + sl.value * 0.9) +
+            Math.sin(t * Math.PI * 7 + s * 0.4) * 0.15;
+          const lean = (sl.value - 0.5) * 2; // -1..1
+          const offset = weave * amp + lean * amp * 0.85;
+          g.lineTo(x0 + offset, sl.trackY);
         }
-        g.lineTo(x, h * 0.9);
+        // Exit angle continues the last lean so threads don't snap vertical
+        const last = sliders[sliders.length - 1];
+        const exitLean = (last.value - 0.5) * amp * 1.1;
+        g.lineTo(x0 + exitLean, h * 0.92);
         g.stroke({
-          width: 1.5,
+          width: 1.6,
           color: 0x6a8f7a,
-          alpha: 0.25 + (i % 3 === 0 ? 0.2 : 0),
+          alpha: 0.28 + (i % 3 === 0 ? 0.22 : 0),
         });
       }
 
       for (let i = 0; i < sliders.length; i++) {
         const s = sliders[i];
-        // track
         g.moveTo(s.trackX0, s.trackY);
         g.lineTo(s.trackX1, s.trackY);
         g.stroke({ width: 4, color: 0x2a332e, alpha: 1 });
@@ -189,7 +193,7 @@ export const sliderLoom: ExperienceModule = {
   name: "Slider Loom",
   modality: "Mechanical",
   tagline: "Multi-slider weave — snap points and soft resistance.",
-  hint: "Slide each bar. Feel the snap points.",
+  hint: "Slide each bar. Watch the weave angles shift.",
   accent: "#8fa894",
   mount,
 };
