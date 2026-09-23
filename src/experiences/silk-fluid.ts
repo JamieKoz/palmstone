@@ -1,4 +1,5 @@
-import { Container, Graphics } from "pixi.js";
+import { BlurFilter, Container, Graphics } from "pixi.js";
+import { hslToRgb } from "@/engine/color";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Cell = { ink: number; vx: number; vy: number };
@@ -10,11 +11,18 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
   const layer = new Container();
   root.addChild(layer);
+  const fluidLayer = new Container();
+  layer.addChild(fluidLayer);
   const g = new Graphics();
-  layer.addChild(g);
+  fluidLayer.addChild(g);
+  const cursorG = new Graphics();
+  layer.addChild(cursorG);
 
-  const COLS = 48;
-  const ROWS = 32;
+  const blur = new BlurFilter({ strength: 8, quality: 3 });
+  fluidLayer.filters = [blur];
+
+  const COLS = 56;
+  const ROWS = 36;
   const field: Cell[][] = Array.from({ length: ROWS }, () =>
     Array.from({ length: COLS }, () => ({ ink: 0, vx: 0, vy: 0 })),
   );
@@ -55,16 +63,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     return { c, r };
   }
 
-  function hslToHex(hh: number, s: number, l: number) {
-    const a = s * Math.min(l, 1 - l);
-    const f = (n: number) => {
-      const k = (n + hh * 12) % 12;
-      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-      return Math.round(255 * color);
-    };
-    return (f(0) << 16) | (f(8) << 8) | f(4);
-  }
-
   return {
     update(dt: number) {
       const cw = w / COLS;
@@ -76,7 +74,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
       if (pointerDown) {
         const { c, r } = cellAt(px, py);
-        const rad = 2;
+        const rad = 3;
         for (let dy = -rad; dy <= rad; dy++) {
           for (let dx = -rad; dx <= rad; dx++) {
             const rr = r + dy;
@@ -85,9 +83,9 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
             const fall = 1 - Math.hypot(dx, dy) / (rad + 0.01);
             if (fall <= 0) continue;
             const cell = field[rr][cc];
-            cell.ink = Math.min(1, cell.ink + fall * 0.35);
-            cell.vx += pvx * 0.002 * fall;
-            cell.vy += pvy * 0.002 * fall;
+            cell.ink = Math.min(1, cell.ink + fall * 0.28);
+            cell.vx += pvx * 0.0028 * fall;
+            cell.vy += pvy * 0.0028 * fall;
           }
         }
         emitAcc += Math.hypot(pvx, pvy) * dt;
@@ -98,7 +96,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         }
       }
 
-      // viscous diffusion + advection-ish
+      // Viscous diffusion + swirl advection
       const next = field.map((row) => row.map((c) => ({ ...c })));
       for (let r = 1; r < ROWS - 1; r++) {
         for (let c = 1; c < COLS - 1; c++) {
@@ -109,17 +107,35 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
               field[r - 1][c].ink +
               field[r + 1][c].ink -
               4 * cell.ink) *
-            0.18;
-          next[r][c].ink = Math.max(0, Math.min(1, cell.ink + lap * dt * 8 - cell.ink * 0.015 * dt));
-          next[r][c].vx = cell.vx * 0.94;
-          next[r][c].vy = cell.vy * 0.94 + 0.02;
-          // advect ink toward velocity
-          const tc = Math.max(0, Math.min(COLS - 1, c + Math.sign(cell.vx)));
-          const tr = Math.max(0, Math.min(ROWS - 1, r + Math.sign(cell.vy)));
-          if ((tc !== c || tr !== r) && cell.ink > 0.02) {
-            const transfer = cell.ink * 0.08 * Math.min(1, Math.hypot(cell.vx, cell.vy) * 4);
-            next[r][c].ink -= transfer;
-            next[tr][tc].ink = Math.min(1, next[tr][tc].ink + transfer);
+            0.22;
+          // Mild curl so pours keep swirling
+          const curl =
+            (field[r][c + 1].vy - field[r][c - 1].vy - (field[r + 1][c].vx - field[r - 1][c].vx)) *
+            0.08;
+          next[r][c].ink = Math.max(
+            0,
+            Math.min(1, cell.ink + lap * dt * 10 - cell.ink * 0.012 * dt),
+          );
+          next[r][c].vx = cell.vx * 0.96 - curl * 0.4;
+          next[r][c].vy = cell.vy * 0.96 + 0.015 + curl * 0.15;
+
+          const speed = Math.hypot(cell.vx, cell.vy);
+          if (cell.ink > 0.015 && speed > 0.02) {
+            const tc = Math.max(
+              0,
+              Math.min(COLS - 1, c + Math.round(Math.sign(cell.vx) * Math.min(2, Math.abs(cell.vx) * 8))),
+            );
+            const tr = Math.max(
+              0,
+              Math.min(ROWS - 1, r + Math.round(Math.sign(cell.vy) * Math.min(2, Math.abs(cell.vy) * 8))),
+            );
+            if (tc !== c || tr !== r) {
+              const transfer = cell.ink * 0.12 * Math.min(1, speed * 5);
+              next[r][c].ink -= transfer;
+              next[tr][tc].ink = Math.min(1, next[tr][tc].ink + transfer);
+              next[tr][tc].vx += cell.vx * 0.08;
+              next[tr][tc].vy += cell.vy * 0.08;
+            }
           }
         }
       }
@@ -131,22 +147,26 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
       g.clear();
       g.rect(0, 0, w, h);
-      g.fill({ color: 0x0e1618, alpha: 1 });
+      g.fill({ color: 0x0c1416, alpha: 1 });
 
+      const cellR = Math.max(cw, ch) * 0.95;
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           const ink = field[r][c].ink;
-          if (ink < 0.02) continue;
-          const localHue = (hue + ink * 0.12 + c * 0.002) % 1;
-          const color = hslToHex(localHue, 0.45 + ink * 0.2, 0.28 + ink * 0.35);
-          g.roundRect(c * cw - 1, r * ch - 1, cw + 2, ch + 2, 4);
-          g.fill({ color, alpha: 0.35 + ink * 0.65 });
+          if (ink < 0.03) continue;
+          const localHue = (hue + ink * 0.14 + c * 0.0015 + r * 0.001) % 1;
+          const color = hslToRgb(localHue, 0.42 + ink * 0.25, 0.26 + ink * 0.38);
+          const x = (c + 0.5) * cw;
+          const y = (r + 0.5) * ch;
+          g.circle(x, y, cellR * (0.7 + ink * 0.55));
+          g.fill({ color, alpha: 0.28 + ink * 0.7 });
         }
       }
 
+      cursorG.clear();
       if (pointerDown) {
-        g.circle(px, py, 28);
-        g.stroke({ width: 2, color: 0xa8d4c8, alpha: 0.35 });
+        cursorG.circle(px, py, 30);
+        cursorG.stroke({ width: 2, color: 0xa8d4c8, alpha: 0.35 });
       }
     },
     resize(nw, nh) {
@@ -157,6 +177,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      fluidLayer.filters = null;
+      blur.destroy();
       layer.destroy({ children: true });
     },
   };

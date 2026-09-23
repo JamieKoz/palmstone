@@ -1,4 +1,6 @@
 import { Container, Graphics } from "pixi.js";
+import { hslToRgb } from "@/engine/color";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Bead = {
@@ -19,6 +21,15 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   root.addChild(layer);
   const g = new Graphics();
   layer.addChild(g);
+
+  const host = ctx.app.canvas.parentElement ?? document.body;
+  const hud = createHud(host);
+  /** 0.4 – 2.2 gravity multiplier */
+  let gravityMul = 1;
+
+  hud.slider("Gravity", 0.35, 2.2, gravityMul, (v) => {
+    gravityMul = v;
+  });
 
   const wells = [
     { x: 0, y: 0, r: 0 },
@@ -97,15 +108,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   window.addEventListener("pointerup", onUp);
   el.style.touchAction = "none";
 
-  function hsl(h: number, s: number, l: number) {
-    const a = s * Math.min(l, 1 - l);
-    const f = (n: number) => {
-      const k = (n + h * 12) % 12;
-      return Math.round(255 * (l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)));
-    };
-    return (f(0) << 16) | (f(8) << 8) | f(4);
-  }
-
   return {
     update(dt: number) {
       if (drag != null) {
@@ -115,21 +117,20 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         beads[drag].vy = 0;
       }
 
+      const gScale = gravityMul;
       for (let i = 0; i < beads.length; i++) {
         if (i === drag) continue;
         const b = beads[i];
-        // gravity wells
         for (const well of wells) {
           const dx = well.x - b.x;
           const dy = well.y - b.y;
           const d = Math.hypot(dx, dy) || 1;
-          const pull = 900 / (d + 40);
+          const pull = (900 * gScale) / (d + 40);
           b.vx += (dx / d) * pull * dt;
           b.vy += (dy / d) * pull * dt;
-          // orbital preference near well
           if (d < well.r * 1.6) {
-            b.vx += (-dy / d) * 40 * dt;
-            b.vy += (dx / d) * 40 * dt;
+            b.vx += (-dy / d) * 40 * gScale * dt;
+            b.vy += (dx / d) * 40 * gScale * dt;
           }
         }
         b.vx *= Math.pow(0.995, dt * 60);
@@ -154,7 +155,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         }
       }
 
-      // soft collisions
       for (let i = 0; i < beads.length; i++) {
         for (let j = i + 1; j < beads.length; j++) {
           const a = beads[i];
@@ -192,15 +192,15 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       g.fill({ color: 0x0c1018, alpha: 1 });
 
       for (const well of wells) {
-        g.circle(well.x, well.y, well.r);
-        g.stroke({ width: 1.5, color: 0x4a6080, alpha: 0.35 });
+        g.circle(well.x, well.y, well.r * (0.85 + gravityMul * 0.12));
+        g.stroke({ width: 1.5, color: 0x4a6080, alpha: 0.25 + gravityMul * 0.08 });
         g.circle(well.x, well.y, 4);
         g.fill({ color: 0x8aa4c8, alpha: 0.5 });
       }
 
       for (const b of beads) {
         g.circle(b.x, b.y, b.r);
-        g.fill({ color: hsl(b.hue, 0.35, 0.62), alpha: 0.95 });
+        g.fill({ color: hslToRgb(b.hue, 0.35, 0.62), alpha: 0.95 });
         g.circle(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.28);
         g.fill({ color: 0xffffff, alpha: 0.35 });
       }
@@ -220,6 +220,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      hud.destroy();
       layer.destroy({ children: true });
     },
   };
@@ -230,7 +231,7 @@ export const orbitBeads: ExperienceModule = {
   name: "Orbit Beads",
   modality: "Spatial",
   tagline: "Fling beads into stable orbits around gravity wells.",
-  hint: "Drag and fling a bead. Watch orbits form.",
+  hint: "Drag and fling a bead. Use Gravity to pull harder.",
   accent: "#8aa4c8",
   mount,
 };

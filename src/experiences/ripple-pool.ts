@@ -1,4 +1,5 @@
-import { Container, Graphics } from "pixi.js";
+import { BlurFilter, Container, Graphics } from "pixi.js";
+import { rgb } from "@/engine/color";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Ripple = { x: number; y: number; t: number; amp: number };
@@ -10,8 +11,16 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
   const layer = new Container();
   root.addChild(layer);
+  const fieldLayer = new Container();
+  const ringLayer = new Graphics();
+  layer.addChild(fieldLayer);
+  layer.addChild(ringLayer);
   const g = new Graphics();
-  layer.addChild(g);
+  fieldLayer.addChild(g);
+
+  // Soft blur hides the sample lattice so waves read as continuous water.
+  const blur = new BlurFilter({ strength: 6, quality: 3 });
+  fieldLayer.filters = [blur];
 
   const ripples: Ripple[] = [];
   let pointerDown = false;
@@ -22,7 +31,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
   const spawn = (x: number, y: number, amp = 1) => {
     ripples.push({ x, y, t: 0, amp });
-    if (ripples.length > 18) ripples.shift();
+    if (ripples.length > 14) ripples.shift();
   };
 
   const onDown = (e: PointerEvent) => {
@@ -48,61 +57,72 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   window.addEventListener("pointerup", onUp);
   el.style.touchAction = "none";
 
-  const COLS = 36;
-  const ROWS = 24;
+  // Dense enough for soft water, cheap enough for mobile.
+  const COLS = 42;
+  const ROWS = 28;
+
+  function sampleHeight(x: number, y: number): number {
+    let hgt = 0;
+    for (const rip of ripples) {
+      const d = Math.hypot(x - rip.x, y - rip.y);
+      const wave = Math.sin(d * 0.042 - rip.t * 4.0) * Math.exp(-rip.t * 0.65) * rip.amp;
+      const envelope = Math.exp(-Math.max(0, d - rip.t * 190) * 0.0075);
+      hgt += wave * envelope;
+    }
+    hgt += Math.sin(x * 0.009 + time * 0.55) * Math.cos(y * 0.011 - time * 0.38) * 0.07;
+    return hgt;
+  }
 
   return {
     update(dt: number) {
       time += dt;
       if (pointerDown) {
         drip += dt;
-        if (drip > 0.12) {
-          spawn(px + (Math.random() - 0.5) * 8, py + (Math.random() - 0.5) * 8, 0.55);
-          audio.tone(160 + Math.random() * 80, 0.15, 0.2);
+        if (drip > 0.14) {
+          spawn(px + (Math.random() - 0.5) * 6, py + (Math.random() - 0.5) * 6, 0.5);
+          audio.tone(160 + Math.random() * 80, 0.12, 0.18);
           drip = 0;
         }
       }
 
       for (const r of ripples) r.t += dt;
       for (let i = ripples.length - 1; i >= 0; i--) {
-        if (ripples[i].t > 3.2) ripples.splice(i, 1);
+        if (ripples[i].t > 3.4) ripples.splice(i, 1);
       }
 
       const cw = w / COLS;
       const ch = h / ROWS;
+      const cellR = Math.max(cw, ch) * 0.85;
 
       g.clear();
       g.rect(0, 0, w, h);
-      g.fill({ color: 0x0b1a22, alpha: 1 });
+      g.fill({ color: 0x0a1820, alpha: 1 });
 
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           const x = (c + 0.5) * cw;
           const y = (r + 0.5) * ch;
-          let hgt = 0;
-          for (const rip of ripples) {
-            const d = Math.hypot(x - rip.x, y - rip.y);
-            const wave = Math.sin(d * 0.045 - rip.t * 4.2) * Math.exp(-rip.t * 0.7) * rip.amp;
-            const envelope = Math.exp(-Math.max(0, d - rip.t * 180) * 0.008);
-            hgt += wave * envelope;
-          }
-          // ambient breath
-          hgt += Math.sin(x * 0.01 + time * 0.6) * Math.cos(y * 0.012 - time * 0.4) * 0.08;
-
-          const shade = 0.35 + hgt * 0.45;
-          const blue = Math.floor(Math.min(255, 90 + shade * 110));
-          const green = Math.floor(Math.min(255, 70 + shade * 90));
-          const color = (20 << 16) | (green << 8) | blue;
-          g.roundRect(c * cw, r * ch, cw + 1, ch + 1, 2);
-          g.fill({ color, alpha: 0.85 });
+          const hgt = sampleHeight(x, y);
+          // Clamp shade so RGB never goes negative (Pixi color crash).
+          const shade = Math.max(0, Math.min(1.4, 0.42 + hgt * 0.55));
+          const blue = 70 + shade * 130;
+          const green = 55 + shade * 95;
+          const red = 12 + shade * 28;
+          const color = rgb(red, green, blue);
+          g.circle(x, y, cellR);
+          g.fill({ color, alpha: 0.55 + Math.min(0.4, Math.abs(hgt) * 0.35) });
         }
       }
 
+      ringLayer.clear();
       for (const rip of ripples) {
-        const radius = rip.t * 160;
-        const alpha = Math.max(0, 0.35 * Math.exp(-rip.t * 0.9) * rip.amp);
-        g.circle(rip.x, rip.y, radius);
-        g.stroke({ width: 2, color: 0xb8e0f0, alpha });
+        for (let k = 0; k < 3; k++) {
+          const radius = rip.t * 150 + k * 22;
+          const alpha = Math.max(0, 0.28 * Math.exp(-rip.t * 0.85 - k * 0.35) * rip.amp);
+          if (alpha < 0.02) continue;
+          ringLayer.circle(rip.x, rip.y, radius);
+          ringLayer.stroke({ width: 1.5 + (1 - k * 0.25), color: 0xc5e8f5, alpha });
+        }
       }
     },
     resize(nw, nh) {
@@ -113,6 +133,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      fieldLayer.filters = null;
+      blur.destroy();
       layer.destroy({ children: true });
     },
   };
