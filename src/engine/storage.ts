@@ -2,6 +2,8 @@ const FAV_KEY = "palmstone:favourites";
 const MUTE_KEY = "palmstone:muted";
 const HAP_KEY = "palmstone:haptics";
 const RECENT_KEY = "palmstone:recents";
+const MODALITY_KEY = "palmstone:modalitySeconds";
+const SESSIONS_KEY = "palmstone:sessionCount";
 
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -59,8 +61,36 @@ export function setHapticsPref(enabled: boolean) {
 export function pushRecent(id: string) {
   const prev = readJson<string[]>(RECENT_KEY, []).filter((x) => x !== id);
   writeJson(RECENT_KEY, [id, ...prev].slice(0, 8));
+  const sessions = readJson<number>(SESSIONS_KEY, 0);
+  writeJson(SESSIONS_KEY, sessions + 1);
 }
 
 export function getRecents(): string[] {
   return readJson<string[]>(RECENT_KEY, []);
+}
+
+export function getSessionCount(): number {
+  return readJson<number>(SESSIONS_KEY, 0);
+}
+
+/** Accumulate seconds played per modality (client-side habit signal). */
+export function recordModalityPlay(modality: string, seconds: number) {
+  if (seconds < 0.5) return;
+  const map = readJson<Record<string, number>>(MODALITY_KEY, {});
+  map[modality] = (map[modality] ?? 0) + seconds;
+  writeJson(MODALITY_KEY, map);
+}
+
+export function getModalitySeconds(): Record<string, number> {
+  return readJson<Record<string, number>>(MODALITY_KEY, {});
+}
+
+/** Top modalities by play time — empty if not enough signal. */
+export function getPreferredModalities(limit = 2): string[] {
+  const map = getModalitySeconds();
+  return Object.entries(map)
+    .sort((a, b) => b[1] - a[1])
+    .filter(([, s]) => s >= 8)
+    .slice(0, limit)
+    .map(([m]) => m);
 }

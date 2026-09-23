@@ -4,22 +4,36 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { playUiClick } from "@/components/SiteAudio";
 import { CATALOG, getMeta, MODALITIES } from "@/engine/catalog";
-import { getFavourites, getRecents, toggleFavourite } from "@/engine/storage";
+import {
+  getFavourites,
+  getPreferredModalities,
+  getRecents,
+  toggleFavourite,
+} from "@/engine/storage";
 
 export function PlaygroundGallery() {
   const [favs, setFavs] = useState<string[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
+  const [prefs, setPrefs] = useState<string[]>([]);
   const [filter, setFilter] = useState<"all" | "favourites" | "webgl" | string>("all");
 
   useEffect(() => {
     setFavs(getFavourites());
     setRecents(getRecents());
+    setPrefs(getPreferredModalities(2));
   }, []);
 
   const continueMeta = useMemo(() => {
     const id = recents[0];
     return id ? getMeta(id) : undefined;
   }, [recents]);
+
+  const forYou = useMemo(() => {
+    if (prefs.length === 0) return [];
+    return CATALOG.filter(
+      (e) => prefs.includes(e.modality) && e.id !== continueMeta?.id,
+    ).slice(0, 4);
+  }, [prefs, continueMeta]);
 
   const list = useMemo(() => {
     let base = [...CATALOG];
@@ -29,17 +43,27 @@ export function PlaygroundGallery() {
       base = base.filter((e) => e.modality === filter);
     }
 
-    if (filter === "all" || filter === "webgl") {
+    if (filter === "all") {
+      const prefSet = new Set(prefs);
       const score = (id: string) => {
+        const meta = getMeta(id);
         const fi = favs.indexOf(id);
         const ri = recents.indexOf(id);
-        const web = getMeta(id)?.badge === "WebGL" ? 50 : 0;
-        return (fi >= 0 ? 1000 - fi : 0) + (ri >= 0 ? 100 - ri : 0) + web;
+        const pref = meta && prefSet.has(meta.modality) ? 200 : 0;
+        const web = meta?.badge === "WebGL" ? 40 : 0;
+        return (fi >= 0 ? 1000 - fi : 0) + (ri >= 0 ? 100 - ri : 0) + pref + web;
       };
       base.sort((a, b) => score(b.id) - score(a.id));
     }
     return base;
-  }, [favs, recents, filter]);
+  }, [favs, recents, filter, prefs]);
+
+  const filterChips: { id: string; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "favourites", label: "Favourites" },
+    { id: "webgl", label: "WebGL" },
+    ...MODALITIES.filter((m) => m !== "WebGL").map((m) => ({ id: m, label: m })),
+  ];
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
@@ -57,7 +81,9 @@ export function PlaygroundGallery() {
               Palmstone
             </Link>
             <p className="mt-2 max-w-md text-[var(--mist)]">
-              Pick a feel. Stay as long as you like.
+              {prefs.length > 0
+                ? `Pick up a ${prefs[0].toLowerCase()} feel — or wander.`
+                : "Pick a feel. Stay as long as you like."}
             </p>
           </div>
         </header>
@@ -66,7 +92,7 @@ export function PlaygroundGallery() {
           <Link
             href={`/playground/${continueMeta.id}`}
             onClick={() => playUiClick()}
-            className="mb-8 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
+            className="mb-6 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
             style={{
               background: "color-mix(in oklab, var(--panel) 70%, transparent)",
               borderLeft: `3px solid ${continueMeta.accent}`,
@@ -82,14 +108,39 @@ export function PlaygroundGallery() {
           </Link>
         )}
 
+        {forYou.length > 0 && filter === "all" && (
+          <section className="mb-8">
+            <h2 className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--fade)]">
+              For you
+            </h2>
+            <ul className="flex flex-col gap-1">
+              {forYou.map((exp) => (
+                <li key={exp.id}>
+                  <Link
+                    href={`/playground/${exp.id}`}
+                    onClick={() => playUiClick()}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-[color-mix(in_oklab,var(--panel)_60%,transparent)]"
+                  >
+                    <span
+                      className="h-8 w-1 shrink-0 rounded-full"
+                      style={{ background: exp.accent }}
+                      aria-hidden
+                    />
+                    <span className="font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
+                      {exp.name}
+                    </span>
+                    <span className="text-xs uppercase tracking-[0.14em] text-[var(--fade)]">
+                      {exp.modality}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <div className="mb-6 flex flex-wrap gap-2">
-          {(
-            [
-              ["all", "All"],
-              ["favourites", "Favourites"],
-              ["webgl", "WebGL"],
-            ] as const
-          ).map(([id, label]) => (
+          {filterChips.map(({ id, label }) => (
             <button
               key={id}
               type="button"

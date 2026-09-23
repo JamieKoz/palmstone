@@ -11,6 +11,7 @@ import {
   getMuted,
   isFavourite,
   pushRecent,
+  recordModalityPlay,
   setHapticsPref,
   setMutedPref,
   toggleFavourite,
@@ -38,6 +39,16 @@ export function ExperiencePlayer({ experienceId }: Props) {
     setFav(isFavourite(experienceId));
     pushRecent(experienceId);
   }, [experienceId]);
+
+  // Phase 1 habit: accumulate modality play time while this experience is mounted
+  useEffect(() => {
+    if (!meta) return;
+    const started = performance.now();
+    return () => {
+      const seconds = (performance.now() - started) / 1000;
+      recordModalityPlay(meta.modality, seconds);
+    };
+  }, [experienceId, meta]);
 
   useEffect(() => {
     let cancelled = false;
