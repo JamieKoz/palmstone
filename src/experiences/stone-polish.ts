@@ -136,11 +136,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
             1 - Math.abs(nx * Math.cos(sheenAngle) + ny * Math.sin(sheenAngle) - 0.08) * 2.2,
           );
           // Strong contrast: dark matte → bright polished
-          const mix = Math.min(1, p * 0.55 + sheen * p * 0.85);
-          const rough = 0.08 + Math.sin(c * 1.7 + r * 2.1) * 0.04 * (1 - p);
-          const br = (38 + rough * 40) * (1 - mix) + 220 * mix;
-          const bg = (34 + rough * 30) * (1 - mix) + 205 * mix;
-          const bb = (28 + rough * 20) * (1 - mix) + 175 * mix;
+          const mix = Math.min(1, p * 0.4 + sheen * p * 1.05 + p * 0.35);
+          const rough = 0.12 + Math.sin(c * 1.7 + r * 2.1) * 0.08 * (1 - p);
+          const br = (28 + rough * 35) * (1 - mix) + 235 * mix;
+          const bg = (24 + rough * 28) * (1 - mix) + 220 * mix;
+          const bb = (18 + rough * 18) * (1 - mix) + 185 * mix;
           g.circle(x, y, Math.max(cw, ch) * 0.72);
           g.fill({ color: rgb(br, bg, bb), alpha: 0.95 });
         }
