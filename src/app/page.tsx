@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LandingCTA } from "@/components/LandingCTA";
 
 export default function HomePage() {
   return (
@@ -6,7 +6,6 @@ export default function HomePage() {
       <div className="atmosphere" aria-hidden />
       <div className="grain-overlay" aria-hidden />
 
-      {/* Full-bleed atmospheric plane with soft stone orb as visual anchor */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
         <div
           className="hero-mark h-[min(70vw,420px)] w-[min(70vw,420px)] rounded-full"
@@ -27,15 +26,7 @@ export default function HomePage() {
             Ridiculously satisfying interactions for when you need to settle, focus, or just feel
             something.
           </p>
-          <div className="hero-cta mt-10">
-            <Link
-              href="/playground"
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--jade)] px-7 py-3.5 text-base font-medium text-[var(--bg)] transition hover:brightness-110 active:scale-[0.98]"
-            >
-              Enter playground
-              <span aria-hidden>→</span>
-            </Link>
-          </div>
+          <LandingCTA />
         </div>
       </div>
     </main>

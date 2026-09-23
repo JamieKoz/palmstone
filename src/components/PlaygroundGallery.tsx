@@ -2,29 +2,42 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CATALOG } from "@/engine/catalog";
+import { CATALOG, getMeta, MODALITIES } from "@/engine/catalog";
 import { getFavourites, getRecents, toggleFavourite } from "@/engine/storage";
 
 export function PlaygroundGallery() {
   const [favs, setFavs] = useState<string[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
-  const [filter, setFilter] = useState<"all" | "favourites">("all");
+  const [filter, setFilter] = useState<"all" | "favourites" | "webgl" | string>("all");
 
   useEffect(() => {
     setFavs(getFavourites());
     setRecents(getRecents());
   }, []);
 
+  const continueMeta = useMemo(() => {
+    const id = recents[0];
+    return id ? getMeta(id) : undefined;
+  }, [recents]);
+
   const list = useMemo(() => {
-    if (filter === "favourites") {
-      return CATALOG.filter((e) => favs.includes(e.id));
+    let base = [...CATALOG];
+    if (filter === "favourites") base = base.filter((e) => favs.includes(e.id));
+    else if (filter === "webgl") base = base.filter((e) => e.badge === "WebGL");
+    else if (filter !== "all" && MODALITIES.includes(filter)) {
+      base = base.filter((e) => e.modality === filter);
     }
-    const score = (id: string) => {
-      const fi = favs.indexOf(id);
-      const ri = recents.indexOf(id);
-      return (fi >= 0 ? 1000 - fi : 0) + (ri >= 0 ? 100 - ri : 0);
-    };
-    return [...CATALOG].sort((a, b) => score(b.id) - score(a.id));
+
+    if (filter === "all" || filter === "webgl") {
+      const score = (id: string) => {
+        const fi = favs.indexOf(id);
+        const ri = recents.indexOf(id);
+        const web = getMeta(id)?.badge === "WebGL" ? 50 : 0;
+        return (fi >= 0 ? 1000 - fi : 0) + (ri >= 0 ? 100 - ri : 0) + web;
+      };
+      base.sort((a, b) => score(b.id) - score(a.id));
+    }
+    return base;
   }, [favs, recents, filter]);
 
   return (
@@ -33,7 +46,7 @@ export function PlaygroundGallery() {
       <div className="grain-overlay" aria-hidden />
 
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-5 pb-16 pt-8 sm:px-8 sm:pt-12">
-        <header className="mb-10 flex flex-col gap-6 sm:mb-14 sm:flex-row sm:items-end sm:justify-between">
+        <header className="mb-8 flex flex-col gap-6 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <Link
               href="/"
@@ -45,34 +58,54 @@ export function PlaygroundGallery() {
               Pick a feel. Stay as long as you like.
             </p>
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setFilter("all")}
-              className={`rounded-full px-4 py-2 text-sm transition ${
-                filter === "all"
-                  ? "bg-[var(--jade)] text-[var(--bg)]"
-                  : "bg-[color-mix(in_oklab,var(--panel)_80%,transparent)] text-[var(--mist)]"
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter("favourites")}
-              className={`rounded-full px-4 py-2 text-sm transition ${
-                filter === "favourites"
-                  ? "bg-[var(--sand)] text-[var(--bg)]"
-                  : "bg-[color-mix(in_oklab,var(--panel)_80%,transparent)] text-[var(--mist)]"
-              }`}
-            >
-              Favourites
-            </button>
-          </div>
         </header>
 
+        {continueMeta && (
+          <Link
+            href={`/playground/${continueMeta.id}`}
+            className="mb-8 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
+            style={{
+              background: "color-mix(in oklab, var(--panel) 70%, transparent)",
+              borderLeft: `3px solid ${continueMeta.accent}`,
+            }}
+          >
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Continue</p>
+              <p className="mt-1 font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">
+                {continueMeta.name}
+              </p>
+            </div>
+            <span className="text-[var(--jade)]">Play →</span>
+          </Link>
+        )}
+
+        <div className="mb-6 flex flex-wrap gap-2">
+          {(
+            [
+              ["all", "All"],
+              ["favourites", "Favourites"],
+              ["webgl", "WebGL"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setFilter(id)}
+              className={`rounded-full px-4 py-2 text-sm transition ${
+                filter === id
+                  ? id === "favourites"
+                    ? "bg-[var(--sand)] text-[var(--bg)]"
+                    : "bg-[var(--jade)] text-[var(--bg)]"
+                  : "bg-[color-mix(in_oklab,var(--panel)_80%,transparent)] text-[var(--mist)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {list.length === 0 ? (
-          <p className="text-[var(--mist)]">No favourites yet — star one while you play.</p>
+          <p className="text-[var(--mist)]">Nothing here yet — try another filter.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {list.map((exp, i) => {
@@ -97,6 +130,11 @@ export function PlaygroundGallery() {
                         <span className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">
                           {exp.modality}
                         </span>
+                        {exp.badge && (
+                          <span className="rounded-full bg-[color-mix(in_oklab,var(--jade)_25%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--jade)]">
+                            {exp.badge}
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 truncate text-sm text-[var(--mist)] sm:whitespace-normal">
                         {exp.tagline}

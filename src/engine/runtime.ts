@@ -10,9 +10,14 @@ export type EngineController = {
   destroy(): void;
 };
 
-export async function startExperience(
+function measureHost(host: HTMLElement) {
+  const rect = host.getBoundingClientRect();
+  return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+}
+
+async function startPixi(
   host: HTMLElement,
-  module: ExperienceModule,
+  module: Extract<ExperienceModule, { kind?: "pixi" }>,
 ): Promise<EngineController> {
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
@@ -37,26 +42,19 @@ export async function startExperience(
 
   const audio = createAudioBus(getMuted());
   const haptics = createHapticsBus(getHapticsPref());
+  const size = measureHost(host);
 
   const ctx = {
     app,
     root,
-    width: app.renderer.width / app.renderer.resolution,
-    height: app.renderer.height / app.renderer.resolution,
+    width: size.width,
+    height: size.height,
     audio,
     haptics,
     muted: () => audio.isMuted(),
     hapticsEnabled: () => haptics.isEnabled(),
+    host,
   };
-
-  // Use CSS pixel size from host
-  const measure = () => {
-    const rect = host.getBoundingClientRect();
-    return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
-  };
-  const size = measure();
-  ctx.width = size.width;
-  ctx.height = size.height;
 
   let handle: ExperienceHandle = await module.mount(ctx);
 
@@ -70,14 +68,13 @@ export async function startExperience(
   app.ticker.add(ticker);
 
   const onResize = () => {
-    const s = measure();
+    const s = measureHost(host);
     ctx.width = s.width;
     ctx.height = s.height;
     handle.resize?.(s.width, s.height);
   };
   window.addEventListener("resize", onResize);
 
-  // unlock audio on first gesture on host
   const unlock = () => {
     void audio.resume();
   };
@@ -100,4 +97,102 @@ export async function startExperience(
       if (canvas.parentElement === host) host.removeChild(canvas);
     },
   };
+}
+
+async function startWebGL(
+  host: HTMLElement,
+  module: Extract<ExperienceModule, { kind: "webgl" }>,
+): Promise<EngineController> {
+  const canvas = document.createElement("canvas");
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  canvas.style.display = "block";
+  canvas.style.touchAction = "none";
+  host.appendChild(canvas);
+
+  const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio : 1, 2);
+  const size = measureHost(host);
+  canvas.width = Math.floor(size.width * dpr);
+  canvas.height = Math.floor(size.height * dpr);
+
+  const gl = canvas.getContext("webgl2", {
+    antialias: true,
+    alpha: false,
+    powerPreference: "high-performance",
+  });
+  if (!gl) throw new Error("WebGL2 not available");
+
+  const audio = createAudioBus(getMuted());
+  const haptics = createHapticsBus(getHapticsPref());
+
+  const ctx = {
+    canvas,
+    gl,
+    width: size.width,
+    height: size.height,
+    audio,
+    haptics,
+    muted: () => audio.isMuted(),
+    hapticsEnabled: () => haptics.isEnabled(),
+    host,
+  };
+
+  let handle: ExperienceHandle = await module.mount(ctx);
+
+  let last = performance.now();
+  let raf = 0;
+  const frame = (t: number) => {
+    const dt = Math.min(0.05, (t - last) / 1000);
+    last = t;
+    handle.update?.(dt);
+    raf = requestAnimationFrame(frame);
+  };
+  raf = requestAnimationFrame(frame);
+
+  const onResize = () => {
+    const s = measureHost(host);
+    const d = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(s.width * d);
+    canvas.height = Math.floor(s.height * d);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    ctx.width = s.width;
+    ctx.height = s.height;
+    handle.resize?.(s.width, s.height);
+  };
+  window.addEventListener("resize", onResize);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  const unlock = () => {
+    void audio.resume();
+  };
+  host.addEventListener("pointerdown", unlock, { once: true });
+
+  return {
+    setMuted(muted: boolean) {
+      audio.setMuted(muted);
+    },
+    setHaptics(enabled: boolean) {
+      haptics.setEnabled(enabled);
+    },
+    destroy() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+      host.removeEventListener("pointerdown", unlock);
+      handle.destroy();
+      audio.destroy();
+      const ext = gl.getExtension("WEBGL_lose_context");
+      ext?.loseContext();
+      if (canvas.parentElement === host) host.removeChild(canvas);
+    },
+  };
+}
+
+export async function startExperience(
+  host: HTMLElement,
+  module: ExperienceModule,
+): Promise<EngineController> {
+  if (module.kind === "webgl") {
+    return startWebGL(host, module);
+  }
+  return startPixi(host, module);
 }
