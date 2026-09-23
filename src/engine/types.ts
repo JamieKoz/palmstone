@@ -28,6 +28,8 @@ export interface AudioBus {
   pulse(intensity?: number): void;
   /** Soft tone / bloom. */
   tone(freq?: number, intensity?: number, duration?: number): void;
+  /** Bongo-like membrane hit (Pulse Pads). */
+  bongo(freq: number, intensity?: number): void;
   /**
    * Start a looping generative ambient bed (for audio-reactive visuals).
    * Safe to call repeatedly; no-ops when muted until unmuted.
