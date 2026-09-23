@@ -11,24 +11,32 @@ export function SiteAudio() {
     audio.setMuted(getMuted());
 
     const unlock = () => {
-      void audio.unlockAndStartPeace();
+      void (async () => {
+        await audio.resume();
+        await audio.unlockAndStartPeace();
+      })();
     };
 
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    // Capture phase so we unlock even if a child stops propagation later
+    window.addEventListener("pointerdown", unlock, { once: true, capture: true });
+    window.addEventListener("keydown", unlock, { once: true, capture: true });
+    window.addEventListener("touchstart", unlock, { once: true, capture: true });
     return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
+      window.removeEventListener("touchstart", unlock, true);
     };
   }, []);
 
   return null;
 }
 
-/** Soft playful UI click (call from button/link handlers). */
+/** Soft playful UI click + ensure ambient is running. */
 export function playUiClick() {
   const audio = getSharedAudio();
-  void audio.resume();
-  void audio.unlockAndStartPeace();
-  audio.uiSoft();
+  void (async () => {
+    await audio.resume();
+    await audio.unlockAndStartPeace();
+    audio.uiSoft();
+  })();
 }

@@ -1,4 +1,5 @@
 import { createHud } from "@/engine/hud";
+import { getSharedAudio } from "@/engine/audio";
 import type {
   ExperienceHandle,
   WebGLExperienceContext,
@@ -6,8 +7,8 @@ import type {
 } from "@/engine/types";
 
 /**
- * Mesh Lattice — WebGL2 perspective wire mesh driven by generative audio
- * (vizz.fm–inspired energy field). Touch warps the surface; mute-safe motion continues.
+ * Mesh Lattice — WebGL2 perspective mesh.
+ * Drag rotates the camera (no shape warp). Play Song drives music-reactive vertices.
  */
 
 const VERT = `#version 300 es
@@ -17,9 +18,7 @@ uniform mat4 uMVP;
 uniform float uTime;
 uniform float uBass;
 uniform float uBands[32];
-uniform vec2 uPointer;
-uniform float uPointerDown;
-uniform float uWarp;
+uniform float uMusic; // 0 = idle swell, 1 = full song reaction
 out float vHeight;
 out vec2 vUv;
 out float vEdge;
@@ -38,15 +37,12 @@ void main() {
   float x = (aUv.x - 0.5) * 2.4;
   float z = (aUv.y - 0.5) * 2.4;
 
-  float audio = bandAt(aUv.x) * 0.55 + bandAt(aUv.y) * 0.35;
-  float wave = sin(x * 3.2 + uTime * 1.4) * cos(z * 2.8 - uTime * 1.1) * 0.08;
-  float pulse = sin(length(vec2(x, z)) * 4.0 - uTime * 2.2) * uBass * 0.35;
+  float audio = bandAt(aUv.x) * 0.7 + bandAt(aUv.y) * 0.45;
+  float wave = sin(x * 2.6 + uTime * 0.7) * cos(z * 2.2 - uTime * 0.55) * 0.04;
+  float pulse = sin(length(vec2(x, z)) * 3.5 - uTime * 2.4) * uBass * 0.55;
 
-  vec2 d = aUv - uPointer;
-  float dist = length(d);
-  float touch = exp(-dist * dist * 18.0) * uPointerDown * uWarp;
-
-  float y = wave + audio * 0.55 + pulse + touch * 0.55;
+  // Music drives displacement; without song keep a gentle idle ripple only.
+  float y = wave + (audio * 0.85 + pulse) * (0.15 + uMusic * 0.95);
   vHeight = y;
   vEdge = max(abs(aUv.x - 0.5), abs(aUv.y - 0.5)) * 2.0;
 
@@ -60,25 +56,24 @@ in float vHeight;
 in vec2 vUv;
 in float vEdge;
 uniform float uBass;
-uniform float uTime;
+uniform float uMusic;
 out vec4 outColor;
 
 void main() {
-  float h = clamp(vHeight * 1.6 + 0.35, 0.0, 1.5);
+  float h = clamp(vHeight * 1.8 + 0.35, 0.0, 1.6);
   vec3 deep = vec3(0.04, 0.09, 0.12);
   vec3 mid = vec3(0.18, 0.42, 0.48);
-  vec3 hi = vec3(0.72, 0.88, 0.78);
+  vec3 hi = vec3(0.78, 0.92, 0.82);
   vec3 col = mix(deep, mid, smoothstep(0.0, 0.55, h));
-  col = mix(col, hi, smoothstep(0.35, 1.1, h + uBass * 0.25));
+  col = mix(col, hi, smoothstep(0.3, 1.15, h + uBass * 0.35 * uMusic));
 
-  // Soft grid lines in screen-ish uv
   float gx = abs(fract(vUv.x * 28.0) - 0.5);
   float gz = abs(fract(vUv.y * 28.0) - 0.5);
   float line = 1.0 - smoothstep(0.0, 0.04, min(gx, gz));
-  col += vec3(0.35, 0.55, 0.5) * line * (0.25 + uBass * 0.45);
+  col += vec3(0.35, 0.55, 0.5) * line * (0.22 + uBass * 0.55 * uMusic);
 
   float fade = 1.0 - smoothstep(0.75, 1.05, vEdge);
-  float alpha = (0.55 + h * 0.35 + line * 0.25) * fade;
+  float alpha = (0.55 + h * 0.4 + line * 0.25) * fade;
   outColor = vec4(col, alpha);
 }
 `;
@@ -170,14 +165,25 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   let w = ctx.width;
   let h = ctx.height;
 
+  const shared = getSharedAudio();
   const hud = createHud(host);
-  let sensitivity = 1.15;
-  hud.slider("Reactive", 0.4, 2.2, sensitivity, (v) => {
-    sensitivity = v;
+  let songOn = false;
+
+  const songToggle = hud.toggle("Stop song", "Play song", false, (on) => {
+    songOn = on;
+    void audio.resume();
+    if (on) {
+      shared.startSong();
+      haptics.tap(12);
+    } else {
+      shared.stopSong();
+      // Leave peace ambient running after stop
+      void shared.unlockAndStartPeace();
+    }
   });
 
-  void audio.resume().then(() => audio.startBed("lattice"));
-  audio.startBed("lattice");
+  // Don't auto-start lattice bed (conflicts with peace / song). Keep peace until song.
+  void audio.resume().then(() => shared.unlockAndStartPeace());
 
   const vs = compile(gl, gl.VERTEX_SHADER, VERT);
   const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
@@ -225,46 +231,39 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   const uTime = gl.getUniformLocation(prog, "uTime");
   const uBass = gl.getUniformLocation(prog, "uBass");
   const uBands = gl.getUniformLocation(prog, "uBands[0]");
-  const uPointer = gl.getUniformLocation(prog, "uPointer");
-  const uPointerDown = gl.getUniformLocation(prog, "uPointerDown");
-  const uWarp = gl.getUniformLocation(prog, "uWarp");
+  const uMusic = gl.getUniformLocation(prog, "uMusic");
 
   const mvp = new Float32Array(16);
   const proj = new Float32Array(16);
   const view = new Float32Array(16);
   const bands = new Float32Array(32);
 
-  let pointerDown = false;
-  let px = 0.5;
-  let py = 0.5;
+  let dragging = false;
+  let yaw = 0.55;
+  let pitch = 0.42;
   let time = 0;
-  let camAngle = 0.35;
-
-  const toUv = (clientX: number, clientY: number) => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left) / rect.width,
-      y: (clientY - rect.top) / rect.height,
-    };
-  };
+  let lastX = 0;
+  let lastY = 0;
 
   const onDown = (e: PointerEvent) => {
-    pointerDown = true;
-    const p = toUv(e.clientX, e.clientY);
-    px = p.x;
-    py = p.y;
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    canvas.setPointerCapture?.(e.pointerId);
     void audio.resume();
-    audio.startBed("lattice");
-    haptics.tap(10);
+    haptics.tap(6);
   };
   const onMove = (e: PointerEvent) => {
-    const p = toUv(e.clientX, e.clientY);
-    px = p.x;
-    py = p.y;
-    if (pointerDown) camAngle += (e.movementX || 0) * 0.0015;
+    if (!dragging) return;
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    yaw += dx * 0.008;
+    pitch = Math.max(0.15, Math.min(1.15, pitch + dy * 0.006));
   };
   const onUp = () => {
-    pointerDown = false;
+    dragging = false;
   };
 
   canvas.addEventListener("pointerdown", onDown);
@@ -278,19 +277,21 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   return {
     update(dt: number) {
       time += dt;
-      camAngle += dt * 0.08;
+      songOn = shared.isSongPlaying();
+      songToggle.set(songOn);
+
       audio.getSpectrum(bands);
-      for (let i = 0; i < bands.length; i++) bands[i] *= sensitivity;
-      const bass = audio.getBass() * sensitivity;
+      const bass = audio.getBass();
+      const music = songOn ? 1 : 0;
 
       const aspect = w / Math.max(1, h);
       perspective(proj, (48 * Math.PI) / 180, aspect, 0.1, 20);
-      const eyeR = 2.35;
-      const eyeY = 1.15 + bass * 0.2;
+      const eyeR = 2.45;
+      const eyeY = 0.55 + pitch * 1.1 + bass * music * 0.15;
       lookAt(
         view,
-        [Math.sin(camAngle) * eyeR, eyeY, Math.cos(camAngle) * eyeR],
-        [0, 0.1, 0],
+        [Math.sin(yaw) * eyeR, eyeY, Math.cos(yaw) * eyeR],
+        [0, 0.05 + bass * music * 0.08, 0],
         [0, 1, 0],
       );
       mul(mvp, proj, view);
@@ -304,9 +305,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       gl.uniform1f(uTime, time);
       gl.uniform1f(uBass, bass);
       gl.uniform1fv(uBands, bands);
-      gl.uniform2f(uPointer, px, py);
-      gl.uniform1f(uPointerDown, pointerDown ? 1 : 0.15);
-      gl.uniform1f(uWarp, 1.1 * sensitivity);
+      gl.uniform1f(uMusic, music);
 
       gl.bindVertexArray(vao);
       gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_INT, 0);
@@ -320,7 +319,9 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      audio.stopBed();
+      if (shared.isSongPlaying()) shared.stopSong();
+      else audio.stopBed();
+      void shared.unlockAndStartPeace();
       hud.destroy();
       gl.deleteBuffer(vbo);
       gl.deleteBuffer(ibo);
@@ -335,8 +336,8 @@ export const meshLattice: WebGLExperienceModule = {
   kind: "webgl",
   name: "Mesh Lattice",
   modality: "WebGL",
-  tagline: "Perspective audio mesh — music-reactive lattice you can warp.",
-  hint: "Drag to warp. Generative music drives the grid (mute-safe).",
+  tagline: "Orbit the lattice. Play a song and watch it dance.",
+  hint: "Drag to rotate. Play song to drive the mesh with music.",
   accent: "#6db8b0",
   badge: "WebGL",
   mount,
