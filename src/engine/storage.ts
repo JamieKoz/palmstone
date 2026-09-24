@@ -1,5 +1,6 @@
 const FAV_KEY = "palmstone:favourites";
 const MUTE_KEY = "palmstone:muted";
+const MUSIC_MUTE_KEY = "palmstone:musicMuted";
 const HAP_KEY = "palmstone:haptics";
 const RECENT_KEY = "palmstone:recents";
 const MODALITY_KEY = "palmstone:modalitySeconds";
@@ -48,6 +49,14 @@ export function getMuted(): boolean {
 
 export function setMutedPref(muted: boolean) {
   writeJson(MUTE_KEY, muted);
+}
+
+export function getMusicMuted(): boolean {
+  return readJson<boolean>(MUSIC_MUTE_KEY, false);
+}
+
+export function setMusicMutedPref(muted: boolean) {
+  writeJson(MUSIC_MUTE_KEY, muted);
 }
 
 export function getHapticsPref(): boolean {

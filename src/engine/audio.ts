@@ -1,5 +1,5 @@
 import type { AudioBus } from "./types";
-import { getMuted } from "./storage";
+import { getMuted, getMusicMuted } from "./storage";
 
 type BedStyle = "lattice" | "aurora" | "peace" | "song";
 
@@ -7,39 +7,63 @@ export type SharedAudio = AudioBus & {
   unlockAndStartPeace: () => Promise<void>;
   uiSoft: (variant?: 0 | 1) => void;
   setPeaceEnabled: (on: boolean) => void;
+  setMusicMuted: (muted: boolean) => void;
+  isMusicMuted: () => boolean;
   startSong: () => void;
   stopSong: () => void;
   isSongPlaying: () => boolean;
   bongo: (freq: number, intensity?: number) => void;
+  thock: (intensity?: number, pitch?: number) => void;
+  pop: (intensity?: number, pitch?: number) => void;
+  penClick: (phase: "down" | "up", intensity?: number) => void;
+  switchClick: (on: boolean, intensity?: number) => void;
+  zip: (intensity?: number, pitch?: number, direction?: "open" | "close") => void;
+  stopZip: () => void;
+  elastic: (intensity?: number, pitch?: number) => void;
+  elasticRelease: (intensity?: number, pitch?: number) => void;
+  buttonPress: (phase?: "down" | "up", intensity?: number) => void;
+  mouseClick: (intensity?: number, pitch?: number) => void;
+  lampToggle: (on: boolean, intensity?: number) => void;
+  water: (intensity?: number) => void;
 };
 
 let shared: SharedAudio | null = null;
 
 const MASTER_GAIN = 0.72;
-const PEACE_BED_GAIN = 0.9;
+/** Ambient music sits under UI / experience SFX. */
+const PEACE_BED_GAIN = 0.45;
 
 /**
  * Shared Web Audio for the whole app.
- * Ambient / song / UI SFX are original procedural synthesis — not third-party assets.
+ * Background bed: Reflection on Still Water (looped).
+ * Experience SFX: recorded samples where available, procedural otherwise.
  */
 export function getSharedAudio(): SharedAudio {
   if (shared) return shared;
 
   let ctx: AudioContext | null = null;
   let master: GainNode | null = null;
+  let sfxGain: GainNode | null = null;
+  let musicGain: GainNode | null = null;
   let muted = typeof window !== "undefined" ? getMuted() : false;
+  let musicMuted = typeof window !== "undefined" ? getMusicMuted() : false;
   let lastGrain = 0;
   let lastClick = 0;
   let lastWhoosh = 0;
   let lastUi = 0;
   let lastBongo = 0;
+  let lastThock = 0;
+  let lastPop = 0;
+  let lastZip = 0;
+  let lastElastic = 0;
+  let lastWater = 0;
   let analyser: AnalyserNode | null = null;
   let freqData: Uint8Array<ArrayBuffer> | null = null;
   let bedNodes: AudioNode[] = [];
   let bedOscs: OscillatorNode[] = [];
   let bedGain: GainNode | null = null;
   let bedStyle: BedStyle | null = null;
-  let peaceWanted = true;
+  let peaceWanted = typeof window !== "undefined" ? !getMusicMuted() : true;
   let experienceBedActive = false;
   let songPlaying = false;
   let bassSmooth = 0;
@@ -47,6 +71,143 @@ export function getSharedAudio(): SharedAudio {
   let songTimer: number | null = null;
   let songStep = 0;
   let uiFlip = 0;
+  let peaceBuffer: AudioBuffer | null = null;
+  let peaceLoad: Promise<AudioBuffer | null> | null = null;
+
+  type SampleId =
+    | "bubblePop"
+    | "keyboard"
+    | "penDown"
+    | "penUp"
+    | "lightSwitch"
+    | "zipOpen"
+    | "zipClose"
+    | "zipClose2"
+    | "zipLoop"
+    | "bigButtonDown"
+    | "bigButtonRelease"
+    | "mouseClick"
+    | "elasticStretch"
+    | "elasticRelease"
+    | "lampSwitch"
+    | "lampPullOff"
+    | "water";
+
+  const SAMPLE_FILES: Record<SampleId, string> = {
+    bubblePop: "bubble-wrap-pop.mp3",
+    keyboard: "keyboard-click.mp3",
+    penDown: "pen-down-click.wav",
+    penUp: "pen-release.wav",
+    lightSwitch: "light-switch.mp3",
+    zipOpen: "zipper-open.wav",
+    zipClose: "zipper-close.wav",
+    zipClose2: "zipper-close-2.wav",
+    zipLoop: "zipper.mp3",
+    bigButtonDown: "big-button-press-down.wav",
+    bigButtonRelease: "big-button-press-release.wav",
+    mouseClick: "mouse-click.mp3",
+    elasticStretch: "elastic-stretch.mp3",
+    elasticRelease: "elastic-release.mp3",
+    lampSwitch: "lamp-switch.mp3",
+    lampPullOff: "lamp-pull-off.mp3",
+    water: "water-sound.mp3",
+  };
+
+  const sampleBuffers = new Map<SampleId, AudioBuffer>();
+  let samplesLoad: Promise<void> | null = null;
+  let zipLoopSrc: AudioBufferSourceNode | null = null;
+  let zipLoopGain: GainNode | null = null;
+  let zipLoopDir: "open" | "close" | null = null;
+  let zipLoopBufId: SampleId | null = null;
+
+  function assetUrl(path: string) {
+    const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    return `${base}${path}`;
+  }
+
+  function peaceTrackUrl() {
+    return assetUrl("/audio/reflection-on-still-water.mp3");
+  }
+
+  async function ensureSamples() {
+    if (sampleBuffers.size === Object.keys(SAMPLE_FILES).length) return;
+    if (samplesLoad) return samplesLoad;
+    samplesLoad = (async () => {
+      const c = ensure();
+      if (!c) return;
+      await Promise.all(
+        (Object.entries(SAMPLE_FILES) as [SampleId, string][]).map(async ([id, file]) => {
+          if (sampleBuffers.has(id)) return;
+          try {
+            const res = await fetch(assetUrl(`/audio/sfx/${file}`));
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.arrayBuffer();
+            sampleBuffers.set(id, await c.decodeAudioData(data.slice(0)));
+          } catch (err) {
+            console.warn(`Failed to load SFX ${file}`, err);
+          }
+        }),
+      );
+    })();
+    return samplesLoad;
+  }
+
+  /** Play a one-shot sample. Returns false if unavailable (caller may fallback). */
+  function playSample(
+    id: SampleId,
+    opts: { gain?: number; rate?: number; duration?: number; offset?: number } = {},
+  ): boolean {
+    if (muted) return true; // swallow — don't procedural-fallback while muted
+    const c = ensure();
+    const m = out();
+    const buf = sampleBuffers.get(id);
+    if (!c || !m || !buf) return false;
+    const t = now();
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const rate = Math.max(0.5, Math.min(2, opts.rate ?? 1));
+    src.playbackRate.value = rate;
+    const g = c.createGain();
+    const gainAmt = Math.max(0.0001, opts.gain ?? 0.85);
+    const offset = Math.max(0, Math.min(buf.duration * 0.95, opts.offset ?? 0));
+    g.gain.setValueAtTime(gainAmt, t);
+    if (opts.duration != null && opts.duration > 0) {
+      const dur = opts.duration;
+      g.gain.setValueAtTime(gainAmt, t);
+      g.gain.setValueAtTime(gainAmt, t + dur * 0.7);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.start(t, offset, dur + 0.03);
+      src.stop(t + dur + 0.04);
+    } else {
+      const remain = (buf.duration - offset) / rate;
+      src.start(t, offset);
+      src.stop(t + remain + 0.02);
+    }
+    src.connect(g);
+    g.connect(m);
+    return true;
+  }
+
+  async function loadPeaceTrack(): Promise<AudioBuffer | null> {
+    if (peaceBuffer) return peaceBuffer;
+    if (peaceLoad) return peaceLoad;
+    peaceLoad = (async () => {
+      const c = ensure();
+      if (!c) return null;
+      try {
+        const res = await fetch(peaceTrackUrl());
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.arrayBuffer();
+        peaceBuffer = await c.decodeAudioData(data.slice(0));
+        return peaceBuffer;
+      } catch (err) {
+        console.error("Failed to load ambient track", err);
+        peaceLoad = null;
+        return null;
+      }
+    })();
+    return peaceLoad;
+  }
 
   function ensure(): AudioContext | null {
     if (typeof window === "undefined") return null;
@@ -58,8 +219,17 @@ export function getSharedAudio(): SharedAudio {
       if (!AC) return null;
       ctx = new AC();
       master = ctx.createGain();
-      master.gain.value = muted ? 0 : MASTER_GAIN;
+      master.gain.value = MASTER_GAIN;
       master.connect(ctx.destination);
+
+      sfxGain = ctx.createGain();
+      sfxGain.gain.value = muted ? 0 : 1;
+      sfxGain.connect(master);
+
+      musicGain = ctx.createGain();
+      musicGain.gain.value = musicMuted ? 0 : 1;
+      musicGain.connect(master);
+
       analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.78;
@@ -77,9 +247,16 @@ export function getSharedAudio(): SharedAudio {
     return ensure()?.currentTime ?? 0;
   }
 
+  /** SFX bus — experience / UI sounds. */
   function out() {
     ensure();
-    return master;
+    return sfxGain;
+  }
+
+  /** Music / ambient bed bus. */
+  function musicOut() {
+    ensure();
+    return musicGain;
   }
 
   function clearTimers() {
@@ -137,81 +314,37 @@ export function getSharedAudio(): SharedAudio {
     osc.stop(when + dur + 0.02);
   }
 
-  function startPeaceBed() {
+  async function startPeaceBed() {
     const c = ensure();
-    const m = out();
-    if (!c || !m) return;
+    if (!c || !musicOut()) return;
     if (bedStyle === "peace" && bedGain) return;
+
+    const buf = await loadPeaceTrack();
+    if (!buf) return;
+    // Re-check after decode — song / experience bed may have taken over.
+    if (!peaceWanted || experienceBedActive || songPlaying || musicMuted) return;
+    if (bedStyle === "peace" && bedGain) return;
+
     stopBedInternal();
     bedStyle = "peace";
     bedGain = c.createGain();
     bedGain.gain.value = PEACE_BED_GAIN;
-    bedGain.connect(m);
+    const dest = musicOut();
+    if (!dest) return;
+    bedGain.connect(dest);
     if (analyser) bedGain.connect(analyser);
 
-    // Louder, warmer drones so ambient is clearly audible after unlock.
-    const drones: { f: number; g: number; type: OscillatorType }[] = [
-      { f: 73.42, g: 0.42, type: "sine" },
-      { f: 110, g: 0.34, type: "sine" },
-      { f: 146.83, g: 0.28, type: "triangle" },
-      { f: 220, g: 0.2, type: "sine" },
-      { f: 329.63, g: 0.1, type: "sine" },
-    ];
-    for (const d of drones) {
-      const osc = c.createOscillator();
-      osc.type = d.type;
-      osc.frequency.value = d.f;
-      const lfo = c.createOscillator();
-      lfo.frequency.value = 0.05 + Math.random() * 0.04;
-      const lfoG = c.createGain();
-      lfoG.gain.value = d.f * 0.004;
-      lfo.connect(lfoG);
-      lfoG.connect(osc.frequency);
-      const g = c.createGain();
-      g.gain.value = d.g;
-      const filt = c.createBiquadFilter();
-      filt.type = "lowpass";
-      filt.frequency.value = 1200;
-      osc.connect(g);
-      g.connect(filt);
-      filt.connect(bedGain);
-      osc.start();
-      lfo.start();
-      bedOscs.push(osc, lfo);
-      bedNodes.push(g, filt, lfoG);
-    }
-
-    const dur = 3;
-    const buffer = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    const noise = c.createBufferSource();
-    noise.buffer = buffer;
-    noise.loop = true;
-    const ng = c.createGain();
-    ng.gain.value = 0.08;
-    const nf = c.createBiquadFilter();
-    nf.type = "lowpass";
-    nf.frequency.value = 420;
-    noise.connect(nf);
-    nf.connect(ng);
-    ng.connect(bedGain);
-    noise.start();
-    bedOscs.push(noise as unknown as OscillatorNode);
-    bedNodes.push(ng, nf);
-
-    const scale = [146.83, 174.61, 220, 261.63, 293.66, 349.23];
-    arpeggioTimer = window.setInterval(() => {
-      if (muted || bedStyle !== "peace" || !bedGain) return;
-      const t = now();
-      const start = Math.floor(Math.random() * 3);
-      for (let i = 0; i < 4; i++) softChime(scale[start + i], t + i * 0.2, 1.5, 0.14);
-    }, 5200);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.connect(bedGain);
+    src.start();
+    bedOscs.push(src as unknown as OscillatorNode);
   }
 
   function startVisualBed(style: "lattice" | "aurora") {
     const c = ensure();
-    const m = out();
+    const m = master;
     if (!c || !m) return;
     if (bedStyle === style && bedGain) return;
     stopBedInternal();
@@ -295,7 +428,7 @@ export function getSharedAudio(): SharedAudio {
 
   function startSongBed() {
     const c = ensure();
-    const m = out();
+    const m = master;
     if (!c || !m) return;
     stopBedInternal();
     bedStyle = "song";
@@ -335,18 +468,28 @@ export function getSharedAudio(): SharedAudio {
   }
 
   function restorePeaceIfWanted() {
-    if (peaceWanted && !experienceBedActive && !songPlaying) startPeaceBed();
+    if (peaceWanted && !musicMuted && !experienceBedActive && !songPlaying) void startPeaceBed();
   }
 
   function uiSoft(variant?: 0 | 1) {
     if (muted) return;
-    const c = ensure();
-    const m = out();
-    if (!c || !m) return;
     const t = now();
     if (t - lastUi < 0.04) return;
     lastUi = t;
+    void ensureSamples();
     const v = variant ?? ((uiFlip++ % 2) as 0 | 1);
+    // App-wide nav / UI — soft bubble pop
+    if (
+      playSample("bubblePop", {
+        gain: 0.58,
+        rate: 0.94 + v * 0.08 + Math.random() * 0.05,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
     const base = v === 0 ? 640 : 780;
 
     const osc = c.createOscillator();
@@ -384,6 +527,451 @@ export function getSharedAudio(): SharedAudio {
     osc.stop(t + 0.16);
     noise.start(t);
     noise.stop(t + 0.05);
+  }
+
+  function thock(intensity = 0.6, pitch = 1) {
+    if (muted) return;
+    const t = now();
+    if (t - lastThock < 0.018) return;
+    lastThock = t;
+    void ensureSamples();
+    // Sample has ~60ms lead-in silence then a double click — slice the meat
+    if (
+      playSample("keyboard", {
+        gain: 1.05 * intensity,
+        rate: 0.78 + pitch * 0.18,
+        offset: 0.05,
+        duration: 0.24,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+
+    // Soft body thud (fallback)
+    const osc = c.createOscillator();
+    osc.type = "sine";
+    const f0 = 95 * pitch;
+    osc.frequency.setValueAtTime(f0 * 1.55, t);
+    osc.frequency.exponentialRampToValueAtTime(f0, t + 0.05);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.42 * intensity, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    osc.connect(g);
+    g.connect(m);
+    osc.start(t);
+    osc.stop(t + 0.16);
+  }
+
+  function pop(intensity = 0.7, pitch = 1) {
+    if (muted) return;
+    const t = now();
+    if (t - lastPop < 0.01) return;
+    lastPop = t;
+    void ensureSamples();
+    if (
+      playSample("bubblePop", {
+        gain: 0.9 * intensity,
+        rate: 0.82 + pitch * 0.28,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const osc = c.createOscillator();
+    osc.type = "sine";
+    const f0 = 420 * pitch;
+    osc.frequency.setValueAtTime(f0 * 2.8, t);
+    osc.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.09);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.55 * intensity, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    osc.connect(g);
+    g.connect(m);
+    osc.start(t);
+    osc.stop(t + 0.16);
+  }
+
+  function penClick(phase: "down" | "up", intensity = 0.75) {
+    if (muted) return;
+    void ensureSamples();
+    const id = phase === "down" ? "penDown" : "penUp";
+    if (playSample(id, { gain: 0.95 * intensity, rate: 0.96 + Math.random() * 0.08 })) {
+      return;
+    }
+    // Minimal fallback tick
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const t = now();
+    const osc = c.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(phase === "down" ? 1800 : 900, t);
+    osc.frequency.exponentialRampToValueAtTime(phase === "down" ? 700 : 280, t + 0.04);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.35 * intensity, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    osc.connect(g);
+    g.connect(m);
+    osc.start(t);
+    osc.stop(t + 0.08);
+  }
+
+  function switchClick(on: boolean, intensity = 0.85) {
+    if (muted) return;
+    void ensureSamples();
+    // Slight rate shift so on/off feel distinct
+    if (
+      playSample("lightSwitch", {
+        gain: 0.9 * intensity,
+        rate: on ? 1.05 : 0.92,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const t = now();
+
+    const impact = c.createOscillator();
+    impact.type = "triangle";
+    const f0 = on ? 980 : 720;
+    impact.frequency.setValueAtTime(f0 * 1.55, t);
+    impact.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.035);
+    const impactG = c.createGain();
+    impactG.gain.setValueAtTime(0.0001, t);
+    impactG.gain.exponentialRampToValueAtTime(0.42 * intensity, t + 0.001);
+    impactG.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    impact.connect(impactG);
+    impactG.connect(m);
+
+    const body = c.createOscillator();
+    body.type = "sine";
+    body.frequency.setValueAtTime(on ? 190 : 140, t);
+    body.frequency.exponentialRampToValueAtTime(on ? 95 : 70, t + 0.06);
+    const bodyG = c.createGain();
+    bodyG.gain.setValueAtTime(0.0001, t);
+    bodyG.gain.exponentialRampToValueAtTime(0.5 * intensity, t + 0.002);
+    bodyG.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    body.connect(bodyG);
+    bodyG.connect(m);
+
+    impact.start(t);
+    impact.stop(t + 0.06);
+    body.start(t);
+    body.stop(t + 0.1);
+  }
+
+  function stopZipInternal() {
+    if (zipLoopGain) {
+      const t = now();
+      try {
+        zipLoopGain.gain.cancelScheduledValues(t);
+        zipLoopGain.gain.setValueAtTime(Math.max(0.0001, zipLoopGain.gain.value), t);
+        zipLoopGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+      } catch {
+        /* */
+      }
+    }
+    const src = zipLoopSrc;
+    zipLoopSrc = null;
+    zipLoopGain = null;
+    zipLoopDir = null;
+    zipLoopBufId = null;
+    if (src) {
+      window.setTimeout(() => {
+        try {
+          src.stop();
+          src.disconnect();
+        } catch {
+          /* */
+        }
+      }, 100);
+    }
+  }
+
+  /** Short zipper tooth tick — one bump, pitch tracks pull speed. */
+  function zip(intensity = 0.55, pitch = 1, direction: "open" | "close" = "open") {
+    if (muted) return;
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const t = now();
+    // Allow denser teeth when zipping fast (pitch carries speed)
+    if (t - lastZip < 0.012) return;
+    lastZip = t;
+
+    // Single metal/plastic tooth: deeper when slow, climbs high when fast
+    const rate = Math.max(0.5, Math.min(2.6, pitch));
+    const f0 = (direction === "open" ? 440 : 400) * rate;
+    const tick = c.createOscillator();
+    tick.type = "triangle";
+    tick.frequency.setValueAtTime(f0 * 1.15, t);
+    tick.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.018);
+    const tickG = c.createGain();
+    const gainAmt = 0.12 + intensity * 0.22;
+    tickG.gain.setValueAtTime(0.0001, t);
+    tickG.gain.exponentialRampToValueAtTime(gainAmt, t + 0.001);
+    tickG.gain.exponentialRampToValueAtTime(0.0001, t + 0.028);
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 900 * rate;
+    bp.Q.value = 1.8;
+    tick.connect(bp);
+    bp.connect(tickG);
+    tickG.connect(m);
+    tick.start(t);
+    tick.stop(t + 0.032);
+
+    // Tiny noise transient — the "bump" of a tooth engaging
+    const nLen = Math.ceil(c.sampleRate * 0.018);
+    const buf = c.createBuffer(1, nLen, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < nLen; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nLen, 2.2);
+    }
+    const noise = c.createBufferSource();
+    noise.buffer = buf;
+    const nf = c.createBiquadFilter();
+    nf.type = "highpass";
+    nf.frequency.value = 1200 * rate;
+    const ng = c.createGain();
+    ng.gain.value = 0.1 + intensity * 0.18;
+    noise.connect(nf);
+    nf.connect(ng);
+    ng.connect(m);
+    noise.start(t);
+    noise.stop(t + 0.02);
+  }
+
+  function stopZip() {
+    stopZipInternal();
+  }
+
+  /** Rubber-band stretch — rising scrape while tension builds. */
+  function elastic(intensity = 0.5, pitch = 1) {
+    if (muted) return;
+    const t = now();
+    if (t - lastElastic < 0.04) return;
+    lastElastic = t;
+    void ensureSamples();
+    // Sample has ~130ms lead-in silence — skip it and play a stretch bite
+    if (
+      playSample("elasticStretch", {
+        gain: 0.85 * intensity,
+        rate: 0.75 + pitch * 0.35,
+        offset: 0.14 + Math.random() * 0.35,
+        duration: 0.22,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+
+    const f0 = 180 * pitch;
+    const osc = c.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.exponentialRampToValueAtTime(f0 * (1.15 + intensity * 0.35), t + 0.08);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.14 * intensity, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(600 * pitch, t);
+    bp.frequency.exponentialRampToValueAtTime(1400 * pitch, t + 0.09);
+    bp.Q.value = 2.2;
+    osc.connect(bp);
+    bp.connect(g);
+    g.connect(m);
+
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * 0.09), c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const env = Math.pow(1 - i / data.length, 1.4);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const noise = c.createBufferSource();
+    noise.buffer = buf;
+    const nf = c.createBiquadFilter();
+    nf.type = "bandpass";
+    nf.frequency.value = 900 * pitch + intensity * 400;
+    nf.Q.value = 1.1;
+    const ng = c.createGain();
+    ng.gain.value = 0.16 * intensity;
+    noise.connect(nf);
+    nf.connect(ng);
+    ng.connect(m);
+
+    const body = c.createOscillator();
+    body.type = "sine";
+    body.frequency.setValueAtTime(90 * pitch, t);
+    body.frequency.linearRampToValueAtTime(110 * pitch + intensity * 40, t + 0.1);
+    const bodyG = c.createGain();
+    bodyG.gain.setValueAtTime(0.0001, t);
+    bodyG.gain.exponentialRampToValueAtTime(0.12 * intensity, t + 0.008);
+    bodyG.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    body.connect(bodyG);
+    bodyG.connect(m);
+
+    osc.start(t);
+    osc.stop(t + 0.12);
+    noise.start(t);
+    noise.stop(t + 0.1);
+    body.start(t);
+    body.stop(t + 0.13);
+  }
+
+  function elasticRelease(intensity = 0.7, pitch = 1) {
+    if (muted) return;
+    void ensureSamples();
+    if (
+      playSample("elasticRelease", {
+        gain: 0.95 * intensity,
+        rate: 0.9 + pitch * 0.2,
+        offset: 0.12,
+        duration: 0.45,
+      })
+    ) {
+      return;
+    }
+    elastic(intensity * 0.9, pitch);
+  }
+
+  function lampToggle(on: boolean, intensity = 0.9) {
+    if (muted) return;
+    void ensureSamples();
+    if (on) {
+      // Match svarden: pull-off when turning the lamp on
+      if (
+        playSample("lampPullOff", {
+          gain: 0.55 * intensity,
+          rate: 1.4,
+        })
+      ) {
+        return;
+      }
+    } else if (
+      playSample("lampSwitch", {
+        gain: 0.9 * intensity,
+        rate: 1,
+      })
+    ) {
+      return;
+    }
+    switchClick(on, intensity);
+  }
+
+  /** Soft water stir — short bite from the long water bed while dragging. */
+  function water(intensity = 0.5) {
+    if (muted) return;
+    const t = now();
+    if (t - lastWater < 0.07) return;
+    lastWater = t;
+    void ensureSamples();
+    if (
+      playSample("water", {
+        gain: 0.28 + intensity * 0.45,
+        rate: 0.92 + Math.random() * 0.16,
+        offset: 0.14 + Math.random() * 6.5,
+        duration: 0.2 + intensity * 0.12,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * 0.12), c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.2);
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filter = c.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 600 + intensity * 800;
+    const g = c.createGain();
+    g.gain.value = 0.18 * intensity;
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(m);
+    src.start(t);
+    src.stop(t + 0.13);
+  }
+
+  function buttonPress(phase: "down" | "up" = "down", intensity = 0.9) {
+    if (muted) return;
+    void ensureSamples();
+    const id = phase === "down" ? "bigButtonDown" : "bigButtonRelease";
+    const offset = phase === "down" ? 0.1 : 0.08;
+    if (
+      playSample(id, {
+        gain: 0.95 * intensity,
+        rate: 0.97 + Math.random() * 0.06,
+        offset,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const t = now();
+    const osc = c.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(phase === "down" ? 95 : 140, t);
+    osc.frequency.exponentialRampToValueAtTime(phase === "down" ? 48 : 70, t + 0.14);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.4 * intensity, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    osc.connect(g);
+    g.connect(m);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+
+  function mouseClick(intensity = 0.75, pitch = 1) {
+    if (muted) return;
+    void ensureSamples();
+    if (
+      playSample("mouseClick", {
+        gain: 0.85 * intensity,
+        rate: 0.88 + pitch * 0.22,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const t = now();
+    if (t - lastClick < 0.03) return;
+    lastClick = t;
+    const osc = c.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.value = 180 * pitch + intensity * 80;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25 * intensity, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    osc.connect(g);
+    g.connect(m);
+    osc.start(t);
+    osc.stop(t + 0.07);
   }
 
   function bongo(freq: number, intensity = 0.7) {
@@ -450,10 +1038,25 @@ export function getSharedAudio(): SharedAudio {
     },
     setMuted(m: boolean) {
       muted = m;
-      if (master) master.gain.value = muted ? 0 : MASTER_GAIN;
+      ensure();
+      if (sfxGain) sfxGain.gain.value = muted ? 0 : 1;
     },
     isMuted() {
       return muted;
+    },
+    setMusicMuted(m: boolean) {
+      musicMuted = m;
+      peaceWanted = !m;
+      ensure();
+      if (musicGain) musicGain.gain.value = musicMuted ? 0 : 1;
+      if (musicMuted) {
+        if (bedStyle === "peace") stopBedInternal();
+      } else if (!experienceBedActive && !songPlaying) {
+        void startPeaceBed();
+      }
+    },
+    isMusicMuted() {
+      return musicMuted;
     },
     grain(intensity = 0.4, pitch = 1) {
       if (muted) return;
@@ -571,11 +1174,23 @@ export function getSharedAudio(): SharedAudio {
       osc.stop(t + duration + 0.02);
     },
     bongo,
+    thock,
+    pop,
+    penClick,
+    switchClick,
+    zip,
+    stopZip,
+    elastic,
+    elasticRelease,
+    buttonPress,
+    mouseClick,
+    lampToggle,
+    water,
     startBed(style = "lattice") {
       ensure();
       if (style === "peace") {
-        peaceWanted = true;
-        if (!experienceBedActive && !songPlaying) startPeaceBed();
+        peaceWanted = !musicMuted;
+        if (peaceWanted && !experienceBedActive && !songPlaying) void startPeaceBed();
         return;
       }
       experienceBedActive = true;
@@ -632,6 +1247,7 @@ export function getSharedAudio(): SharedAudio {
     destroy() {
       if (songPlaying) return; // keep song if somehow destroyed mid-play
       experienceBedActive = false;
+      stopZipInternal();
       if (bedStyle === "lattice" || bedStyle === "aurora") {
         stopBedInternal();
         restorePeaceIfWanted();
@@ -639,14 +1255,15 @@ export function getSharedAudio(): SharedAudio {
     },
     async unlockAndStartPeace() {
       await resumeCtx();
-      peaceWanted = true;
-      if (!experienceBedActive && !songPlaying) startPeaceBed();
+      await ensureSamples();
+      peaceWanted = !musicMuted;
+      if (peaceWanted && !experienceBedActive && !songPlaying) await startPeaceBed();
     },
     uiSoft,
     setPeaceEnabled(on: boolean) {
-      peaceWanted = on;
+      peaceWanted = on && !musicMuted;
       if (!on && bedStyle === "peace") stopBedInternal();
-      else if (on && !experienceBedActive && !songPlaying) startPeaceBed();
+      else if (peaceWanted && !experienceBedActive && !songPlaying) void startPeaceBed();
     },
   };
 

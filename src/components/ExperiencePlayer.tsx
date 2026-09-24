@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { playUiClick } from "@/components/SiteAudio";
+import { MusicWaveToggle } from "@/components/MusicWaveToggle";
+import { armPageRevealWipe } from "@/components/PageRevealWipe";
 import { getMeta } from "@/engine/catalog";
 import { getSharedAudio } from "@/engine/audio";
 import type { EngineController } from "@/engine/runtime";
@@ -21,7 +24,17 @@ type Props = {
   experienceId: string;
 };
 
+type TransitionPhase = "enter" | "idle" | "exit";
+
+function muteToggleClass(off: boolean) {
+  return [
+    "rounded-full bg-[color-mix(in_oklab,var(--bg)_72%,transparent)] px-3 py-2 text-sm backdrop-blur-md transition",
+    off ? "ui-toggle-off" : "text-[var(--mist)] hover:text-[var(--ink)]",
+  ].join(" ");
+}
+
 export function ExperiencePlayer({ experienceId }: Props) {
+  const router = useRouter();
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<EngineController | null>(null);
   const [ready, setReady] = useState(false);
@@ -30,18 +43,43 @@ export function ExperiencePlayer({ experienceId }: Props) {
   const [hapticsOn, setHapticsOn] = useState(true);
   const [fav, setFav] = useState(false);
   const [hintVisible, setHintVisible] = useState(true);
+  const [phase, setPhase] = useState<TransitionPhase>("enter");
 
   const meta = getMeta(experienceId);
+  const entering = phase === "enter";
+  const exiting = phase === "exit";
 
   useEffect(() => {
     setMuted(getMuted());
     setHapticsOn(getHapticsPref());
     setFav(isFavourite(experienceId));
     pushRecent(experienceId);
+    setPhase("enter");
+    setHintVisible(true);
   }, [experienceId]);
 
-  // Phase 1 habit: accumulate modality play time (flush on hide/unload + interval —
-  // hard navigations often skip React cleanup alone)
+  useEffect(() => {
+    if (!ready || phase !== "enter") return;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ms = reduce ? 0 : 1100;
+    const t = window.setTimeout(() => setPhase("idle"), ms);
+    return () => window.clearTimeout(t);
+  }, [ready, experienceId, phase]);
+
+  useEffect(() => {
+    if (phase !== "exit") return;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ms = reduce ? 0 : 650;
+    const t = window.setTimeout(() => {
+      router.push("/playground");
+    }, ms);
+    return () => window.clearTimeout(t);
+  }, [phase, router]);
+
   useEffect(() => {
     if (!meta) return;
     const modality = meta.modality;
@@ -108,10 +146,18 @@ export function ExperiencePlayer({ experienceId }: Props) {
   }, [experienceId, meta]);
 
   useEffect(() => {
-    if (!hintVisible) return;
+    if (!hintVisible || entering || exiting || !ready) return;
     const t = window.setTimeout(() => setHintVisible(false), 4500);
     return () => window.clearTimeout(t);
-  }, [hintVisible, experienceId]);
+  }, [hintVisible, experienceId, entering, exiting, ready]);
+
+  const exitToPlayground = () => {
+    if (exiting) return;
+    playUiClick();
+    armPageRevealWipe(meta?.accent);
+    setHintVisible(false);
+    setPhase("exit");
+  };
 
   if (!meta) {
     return (
@@ -126,15 +172,27 @@ export function ExperiencePlayer({ experienceId }: Props) {
     );
   }
 
+  const hostClass = [
+    "experience-host absolute inset-0",
+    ready && entering ? "experience-host--entering" : "",
+    exiting ? "experience-host--exiting" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-[var(--bg)]">
-      <div ref={hostRef} className="absolute inset-0" />
+      <div ref={hostRef} className={hostClass} />
 
-      {!ready && !error && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="font-[family-name:var(--font-display)] text-lg tracking-wide text-[var(--mist)]">
-            Settling…
-          </p>
+      {ready && (entering || exiting) && (
+        <div
+          className={`circle-wipe circle-wipe--${entering ? "enter" : "exit"}`}
+          style={{
+            ["--enter-accent" as string]: meta.accent,
+          }}
+          aria-hidden
+        >
+          <div className="circle-wipe__blob" />
         </div>
       )}
 
@@ -148,15 +206,17 @@ export function ExperiencePlayer({ experienceId }: Props) {
       )}
 
       <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 sm:p-4">
-        <Link
-          href="/playground"
-          onClick={() => playUiClick()}
+        <button
+          type="button"
+          onClick={exitToPlayground}
           className="pointer-events-auto rounded-full bg-[color-mix(in_oklab,var(--bg)_72%,transparent)] px-3 py-2 text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
           aria-label="Exit to playground"
         >
           ← Exit
-        </Link>
-        <div className="pointer-events-auto flex items-center gap-1.5">
+        </button>
+        <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-1.5">
+          <MusicWaveToggle />
+
           <button
             type="button"
             onClick={() => {
@@ -175,11 +235,11 @@ export function ExperiencePlayer({ experienceId }: Props) {
                 playUiClick();
               }
             }}
-            className="rounded-full bg-[color-mix(in_oklab,var(--bg)_72%,transparent)] px-3 py-2 text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
+            className={muteToggleClass(muted)}
             aria-pressed={muted}
-            aria-label={muted ? "Unmute" : "Mute"}
+            aria-label={muted ? "Unmute experience sounds" : "Mute experience sounds"}
           >
-            {muted ? "Muted" : "Sound"}
+            SFX
           </button>
           <button
             type="button"
@@ -190,11 +250,11 @@ export function ExperiencePlayer({ experienceId }: Props) {
               setHapticsPref(next);
               engineRef.current?.setHaptics(next);
             }}
-            className="rounded-full bg-[color-mix(in_oklab,var(--bg)_72%,transparent)] px-3 py-2 text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
+            className={muteToggleClass(!hapticsOn)}
             aria-pressed={hapticsOn}
             aria-label={hapticsOn ? "Disable haptics" : "Enable haptics"}
           >
-            {hapticsOn ? "Haptics" : "No vibe"}
+            Haptics
           </button>
           <button
             type="button"
@@ -212,7 +272,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
         </div>
       </header>
 
-      {hintVisible && (
+      {hintVisible && ready && !entering && !exiting && (
         <button
           type="button"
           onClick={() => {

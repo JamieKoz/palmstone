@@ -2,13 +2,14 @@
 
 import { useEffect } from "react";
 import { getSharedAudio } from "@/engine/audio";
-import { getMuted } from "@/engine/storage";
+import { getMuted, getMusicMuted } from "@/engine/storage";
 
 /** Unlock AudioContext + start peaceful ambient on first user gesture. */
 export function SiteAudio() {
   useEffect(() => {
     const audio = getSharedAudio();
     audio.setMuted(getMuted());
+    audio.setMusicMuted(getMusicMuted());
 
     const unlock = () => {
       void (async () => {
@@ -39,4 +40,8 @@ export function playUiClick() {
     await audio.unlockAndStartPeace();
     audio.uiSoft();
   })();
+}
+
+export function onExperienceNavClick(_e?: { clientX: number; clientY: number }) {
+  playUiClick();
 }

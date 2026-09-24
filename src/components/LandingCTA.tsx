@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { playUiClick } from "@/components/SiteAudio";
+import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
 import { getPreferredModalities, getRecents } from "@/engine/storage";
 
@@ -39,7 +39,7 @@ export function LandingCTA() {
           <>
             <Link
               href={`/playground/${continueId}`}
-              onClick={() => playUiClick()}
+              onClick={(e) => onExperienceNavClick(e)}
               className="inline-flex items-center gap-2 rounded-full bg-[var(--jade)] px-7 py-3.5 text-base font-medium text-[var(--bg)] transition hover:brightness-110 active:scale-[0.98]"
             >
               Continue {continueName}

@@ -54,6 +54,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let drag: number | null = null;
   let px = 0;
   let py = 0;
+  let stretchAcc = 0;
+  let peakStretch = 0;
 
   const nearest = (x: number, y: number) => {
     let best = 0;
@@ -73,9 +75,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     py = e.clientY;
     drag = nearest(px, py);
     void audio.resume();
+    stretchAcc = 0;
+    peakStretch = 0;
     if (drag != null) {
       haptics.tap(10);
-      audio.click(0.25, 0.8);
+      audio.click(0.2, 0.85);
     }
   };
   const onMove = (e: PointerEvent) => {
@@ -84,10 +88,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   };
   const onUp = () => {
     if (drag != null) {
-      audio.whoosh(0.3);
-      haptics.tap(6);
+      const snap = Math.min(1, peakStretch / 140);
+      audio.elasticRelease(0.55 + snap * 0.45, 0.85 + snap * 0.7);
+      haptics.pattern([0, 8, 20, 12]);
     }
     drag = null;
+    peakStretch = 0;
   };
 
   const el = ctx.app.canvas;
@@ -109,6 +115,15 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         n.y = py;
         n.vx = 0;
         n.vy = 0;
+        const pull = Math.hypot(n.x - n.ox, n.y - n.oy);
+        peakStretch = Math.max(peakStretch, pull);
+        stretchAcc += pull * dt;
+        if (stretchAcc > 8) {
+          const tension = Math.min(1, pull / 120);
+          audio.elastic(0.45 + tension * 0.55, 0.7 + tension * 0.9);
+          if (tension > 0.3) haptics.tap(4);
+          stretchAcc = 0;
+        }
       }
 
       for (let i = 0; i < nodes.length; i++) {

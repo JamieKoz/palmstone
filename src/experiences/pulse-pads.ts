@@ -31,17 +31,22 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   const pads: Pad[] = [];
   function layout() {
     pads.length = 0;
-    const cols = 4;
-    const rows = 2;
-    const gapX = w / (cols + 1);
-    const gapY = h / (rows + 1.2);
+    // Narrow screens: stack 2×4 so pads stay thumb-sized
+    const narrow = w < 560;
+    const cols = narrow ? 2 : 4;
+    const rows = narrow ? 4 : 2;
+    const marginX = narrow ? w * 0.1 : w / (cols + 1);
+    const marginY = narrow ? h * 0.12 : h / (rows + 1.2);
+    const cellW = narrow ? (w - marginX * 2) / cols : w / (cols + 1);
+    const cellH = narrow ? (h - marginY * 2) / rows : h / (rows + 1.2);
+    const radius = Math.min(cellW, cellH) * (narrow ? 0.4 : 0.34);
     let i = 0;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         pads.push({
-          x: gapX * (c + 1),
-          y: gapY * (r + 1.1),
-          r: Math.min(gapX, gapY) * 0.34,
+          x: narrow ? marginX + cellW * (c + 0.5) : cellW * (c + 1),
+          y: narrow ? marginY + cellH * (r + 0.5) : cellH * (r + 1.1),
+          r: radius,
           bloom: 0,
           freq: freqs[i],
           tint: tints[i],

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { playUiClick } from "@/components/SiteAudio";
+import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
+import { MusicWaveToggle } from "@/components/MusicWaveToggle";
+import { PageRevealWipe } from "@/components/PageRevealWipe";
 import { CATALOG, getMeta, MODALITIES } from "@/engine/catalog";
 import {
   getFavourites,
@@ -67,6 +69,7 @@ export function PlaygroundGallery() {
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
+      <PageRevealWipe />
       <div className="atmosphere" aria-hidden />
       <div className="grain-overlay" aria-hidden />
 
@@ -86,12 +89,13 @@ export function PlaygroundGallery() {
                 : "Pick a feel. Stay as long as you like."}
             </p>
           </div>
+          <MusicWaveToggle className="sound-wave-btn--gallery" />
         </header>
 
         {continueMeta && (
           <Link
             href={`/playground/${continueMeta.id}`}
-            onClick={() => playUiClick()}
+            onClick={(e) => onExperienceNavClick(e)}
             className="mb-6 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
             style={{
               background: "color-mix(in oklab, var(--panel) 70%, transparent)",
@@ -118,7 +122,7 @@ export function PlaygroundGallery() {
                 <li key={exp.id}>
                   <Link
                     href={`/playground/${exp.id}`}
-                    onClick={() => playUiClick()}
+                    onClick={(e) => onExperienceNavClick(e)}
                     className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-[color-mix(in_oklab,var(--panel)_60%,transparent)]"
                   >
                     <span
@@ -139,26 +143,28 @@ export function PlaygroundGallery() {
           </section>
         )}
 
-        <div className="mb-6 flex flex-wrap gap-2">
-          {filterChips.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => {
-                playUiClick();
-                setFilter(id);
-              }}
-              className={`rounded-full px-4 py-2 text-sm transition ${
-                filter === id
-                  ? id === "favourites"
-                    ? "bg-[var(--sand)] text-[var(--bg)]"
-                    : "bg-[var(--jade)] text-[var(--bg)]"
-                  : "bg-[color-mix(in_oklab,var(--panel)_80%,transparent)] text-[var(--mist)]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="mb-6 flex items-center gap-3">
+          <label htmlFor="playground-filter" className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">
+            Show
+          </label>
+          <select
+            id="playground-filter"
+            value={filter}
+            onChange={(e) => {
+              playUiClick();
+              setFilter(e.target.value);
+            }}
+            className="min-w-[11rem] appearance-none rounded-full border-0 bg-[color-mix(in_oklab,var(--panel)_80%,transparent)] bg-[length:12px] bg-[position:right_14px_center] bg-no-repeat px-4 py-2.5 pr-10 text-sm text-[var(--ink)] outline-none transition hover:bg-[color-mix(in_oklab,var(--panel)_95%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--jade)]"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a8b0a6' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
+            }}
+          >
+            {filterChips.map(({ id, label }) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {list.length === 0 ? (
@@ -171,7 +177,7 @@ export function PlaygroundGallery() {
                 <li key={exp.id} className="group relative">
                   <Link
                     href={`/playground/${exp.id}`}
-                    onClick={() => playUiClick()}
+                    onClick={(e) => onExperienceNavClick(e)}
                     className="gallery-row flex items-center gap-4 rounded-2xl px-4 py-4 transition sm:gap-6 sm:px-5 sm:py-5"
                     style={{ animationDelay: `${i * 40}ms` }}
                   >

@@ -12,7 +12,17 @@ export type ExperienceId =
   | "ripple-pool"
   | "slider-loom"
   | "mesh-lattice"
-  | "aurora-veil";
+  | "aurora-veil"
+  | "pen-clicker"
+  | "light-switch"
+  | "keyboard-thock"
+  | "mouse-click"
+  | "big-button"
+  | "bubble-wrap"
+  | "fidget-cube"
+  | "fidget-spinner"
+  | "zipper"
+  | "lamp-toggle";
 
 export interface AudioBus {
   resume(): Promise<void>;
@@ -30,6 +40,30 @@ export interface AudioBus {
   tone(freq?: number, intensity?: number, duration?: number): void;
   /** Bongo-like membrane hit (Pulse Pads). */
   bongo(freq: number, intensity?: number): void;
+  /** Chunky keyboard bottom-out. */
+  thock(intensity?: number, pitch?: number): void;
+  /** Satisfying bubble-wrap membrane pop. */
+  pop(intensity?: number, pitch?: number): void;
+  /** Retractable pen: press-in vs spring-back click. */
+  penClick(phase: "down" | "up", intensity?: number): void;
+  /** Wall light-switch paddle snap. */
+  switchClick(on: boolean, intensity?: number): void;
+  /** Zipper tooth tick — short bite synced to movement, not a full sample. */
+  zip(intensity?: number, pitch?: number, direction?: "open" | "close"): void;
+  /** @deprecated no-op kept for callers; zip is one-shot now. */
+  stopZip(): void;
+  /** Rubber / elastic stretch scrape. pitch rises with tension. */
+  elastic(intensity?: number, pitch?: number): void;
+  /** Elastic snap-back when a stretched node is released. */
+  elasticRelease(intensity?: number, pitch?: number): void;
+  /** Deep arcade / fidget big-button press (down) or release (up). */
+  buttonPress(phase?: "down" | "up", intensity?: number): void;
+  /** Optical mouse button click. */
+  mouseClick(intensity?: number, pitch?: number): void;
+  /** Pull-cord lamp toggle (on / off use distinct recorded snaps). */
+  lampToggle(on: boolean, intensity?: number): void;
+  /** Soft water stir while dragging a fluid surface. */
+  water(intensity?: number): void;
   /**
    * Start a looping generative ambient bed (for audio-reactive visuals).
    * Safe to call repeatedly; no-ops when muted until unmuted.

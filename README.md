@@ -38,5 +38,14 @@ Also works with `npm install && npm run dev`.
 | Pulse Pads | Rhythm |
 | Stone Polish | Texture |
 | Slider Loom | Mechanical |
+| Pen Clicker | Click |
+| Light Switch | Toggle |
+| Keyboard Thock | Click |
+| Mouse Click | Click |
+| Big Button | Press |
+| Bubble Wrap | Pop |
+| Fidget Cube | Fidget |
+| Fidget Spinner | Fidget |
+| Zipper | Slide |
 
 No accounts yet. No paywall. Sound and haptics are always free.
