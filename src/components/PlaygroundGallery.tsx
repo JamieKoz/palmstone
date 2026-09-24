@@ -18,24 +18,34 @@ export function PlaygroundGallery() {
   const [recents, setRecents] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
   const [filter, setFilter] = useState<"all" | "favourites" | "webgl" | string>("all");
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setFavs(getFavourites());
-    setRecents(getRecents());
-    setPrefs(getPreferredModalities(2));
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setFavs(getFavourites());
+      setRecents(getRecents());
+      setPrefs(getPreferredModalities(2));
+      setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const continueMeta = useMemo(() => {
+    if (!ready) return undefined;
     const id = recents[0];
     return id ? getMeta(id) : undefined;
-  }, [recents]);
+  }, [ready, recents]);
 
   const forYou = useMemo(() => {
-    if (prefs.length === 0) return [];
+    if (!ready || prefs.length === 0) return [];
     return CATALOG.filter(
       (e) => prefs.includes(e.modality) && e.id !== continueMeta?.id,
     ).slice(0, 4);
-  }, [prefs, continueMeta]);
+  }, [ready, prefs, continueMeta]);
 
   const list = useMemo(() => {
     let base = [...CATALOG];
@@ -95,7 +105,7 @@ export function PlaygroundGallery() {
         {continueMeta && (
           <Link
             href={`/playground/${continueMeta.id}`}
-            onClick={(e) => onExperienceNavClick(e)}
+            onClick={() => onExperienceNavClick()}
             className="mb-6 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
             style={{
               background: "color-mix(in oklab, var(--panel) 70%, transparent)",
@@ -122,7 +132,7 @@ export function PlaygroundGallery() {
                 <li key={exp.id}>
                   <Link
                     href={`/playground/${exp.id}`}
-                    onClick={(e) => onExperienceNavClick(e)}
+                    onClick={() => onExperienceNavClick()}
                     className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-[color-mix(in_oklab,var(--panel)_60%,transparent)]"
                   >
                     <span
@@ -177,7 +187,7 @@ export function PlaygroundGallery() {
                 <li key={exp.id} className="group relative">
                   <Link
                     href={`/playground/${exp.id}`}
-                    onClick={(e) => onExperienceNavClick(e)}
+                    onClick={() => onExperienceNavClick()}
                     className="gallery-row flex items-center gap-4 rounded-2xl px-4 py-4 transition sm:gap-6 sm:px-5 sm:py-5"
                     style={{ animationDelay: `${i * 40}ms` }}
                   >

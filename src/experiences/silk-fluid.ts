@@ -130,12 +130,16 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     }
   }
 
-  const formatRGBA = getSupportedFormat(gl.RGBA16F, gl.RGBA, halfFloatTexType);
-  const formatRG = getSupportedFormat(gl.RG16F, gl.RG, halfFloatTexType);
-  const formatR = getSupportedFormat(gl.R16F, gl.RED, halfFloatTexType);
-  if (!formatRGBA || !formatRG || !formatR) {
+  const formatRGBAOrNull = getSupportedFormat(gl.RGBA16F, gl.RGBA, halfFloatTexType);
+  const formatRGOrNull = getSupportedFormat(gl.RG16F, gl.RG, halfFloatTexType);
+  const formatROrNull = getSupportedFormat(gl.R16F, gl.RED, halfFloatTexType);
+  if (!formatRGBAOrNull || !formatRGOrNull || !formatROrNull) {
     throw new Error("Half-float render targets not supported");
   }
+  // Narrowed consts so nested helpers close over non-null types (TS18047).
+  const formatRGBA = formatRGBAOrNull;
+  const formatRG = formatRGOrNull;
+  const formatR = formatROrNull;
 
   gl.clearColor(0, 0, 0, 1);
 
@@ -1090,7 +1094,7 @@ void main () {
   }
 
   function correctRadius(radius: number) {
-    let aspectRatio = canvas.width / canvas.height;
+    const aspectRatio = canvas.width / canvas.height;
     if (aspectRatio > 1) radius *= aspectRatio;
     return radius;
   }

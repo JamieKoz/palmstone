@@ -13,22 +13,29 @@ export function LandingCTA() {
   const [vibeLine, setVibeLine] = useState<string | null>(null);
 
   useEffect(() => {
-    const [last] = getRecents();
-    if (last) {
-      const meta = getMeta(last);
-      if (meta) {
-        setContinueId(meta.id);
-        setContinueName(meta.name);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const [last] = getRecents();
+      if (last) {
+        const meta = getMeta(last);
+        if (meta) {
+          setContinueId(meta.id);
+          setContinueName(meta.name);
+        }
       }
-    }
-    const prefs = getPreferredModalities(2);
-    if (prefs.length > 0) {
-      setVibeLine(
-        prefs.length === 1
-          ? `You linger in ${prefs[0].toLowerCase()} feels.`
-          : `You lean toward ${prefs[0].toLowerCase()} and ${prefs[1].toLowerCase()}.`,
-      );
-    }
+      const prefs = getPreferredModalities(2);
+      if (prefs.length > 0) {
+        setVibeLine(
+          prefs.length === 1
+            ? `You linger in ${prefs[0].toLowerCase()} feels.`
+            : `You lean toward ${prefs[0].toLowerCase()} and ${prefs[1].toLowerCase()}.`,
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -39,7 +46,7 @@ export function LandingCTA() {
           <>
             <Link
               href={`/playground/${continueId}`}
-              onClick={(e) => onExperienceNavClick(e)}
+              onClick={() => onExperienceNavClick()}
               className="inline-flex items-center gap-2 rounded-full bg-[var(--jade)] px-7 py-3.5 text-base font-medium text-[var(--bg)] transition hover:brightness-110 active:scale-[0.98]"
             >
               Continue {continueName}

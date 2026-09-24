@@ -50,12 +50,21 @@ export function ExperiencePlayer({ experienceId }: Props) {
   const exiting = phase === "exit";
 
   useEffect(() => {
-    setMuted(getMuted());
-    setHapticsOn(getHapticsPref());
-    setFav(isFavourite(experienceId));
     pushRecent(experienceId);
-    setPhase("enter");
-    setHintVisible(true);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setPhase("enter");
+      setHintVisible(true);
+      setReady(false);
+      setError(null);
+      setMuted(getMuted());
+      setHapticsOn(getHapticsPref());
+      setFav(isFavourite(experienceId));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [experienceId]);
 
   useEffect(() => {
@@ -117,12 +126,12 @@ export function ExperiencePlayer({ experienceId }: Props) {
           import("@/engine/registry"),
         ]);
         if (cancelled) return;
-        const module = getExperienceModule(experienceId);
-        if (!module) {
+        const experience = getExperienceModule(experienceId);
+        if (!experience) {
           setError("Could not start this experience.");
           return;
         }
-        const controller = await startExperience(host, module);
+        const controller = await startExperience(host, experience);
         if (cancelled) {
           controller.destroy();
           return;

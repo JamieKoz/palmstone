@@ -42,6 +42,6 @@ export function playUiClick() {
   })();
 }
 
-export function onExperienceNavClick(_e?: { clientX: number; clientY: number }) {
+export function onExperienceNavClick() {
   playUiClick();
 }

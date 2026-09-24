@@ -244,7 +244,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     return { tex, fbo };
   }
 
-  let buffers = [makeTarget(), makeTarget()];
+  const buffers = [makeTarget(), makeTarget()];
   let bufferWrite = 0;
 
   const dropLoc = {

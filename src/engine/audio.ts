@@ -1,5 +1,6 @@
 import type { AudioBus } from "./types";
 import { getMuted, getMusicMuted } from "./storage";
+import type { SongHit } from "./songSearch";
 
 type BedStyle = "lattice" | "aurora" | "peace" | "song";
 
@@ -10,8 +11,11 @@ export type SharedAudio = AudioBus & {
   setMusicMuted: (muted: boolean) => void;
   isMusicMuted: () => boolean;
   startSong: () => void;
+  /** Play a remote preview (e.g. iTunes 30s) into the music analyser bus. */
+  playTrackPreview: (track: SongHit) => Promise<void>;
   stopSong: () => void;
   isSongPlaying: () => boolean;
+  getPlayingTrack: () => SongHit | null;
   bongo: (freq: number, intensity?: number) => void;
   thock: (intensity?: number, pitch?: number) => void;
   pop: (intensity?: number, pitch?: number) => void;
@@ -72,6 +76,9 @@ export function getSharedAudio(): SharedAudio {
   let arpeggioTimer: number | null = null;
   let songTimer: number | null = null;
   let songStep = 0;
+  let playingTrack: SongHit | null = null;
+  let trackEl: HTMLAudioElement | null = null;
+  let trackSource: MediaElementAudioSourceNode | null = null;
   let uiFlip = 0;
   let peaceBuffer: AudioBuffer | null = null;
   let peaceLoad: Promise<AudioBuffer | null> | null = null;
@@ -119,8 +126,6 @@ export function getSharedAudio(): SharedAudio {
   let samplesLoad: Promise<void> | null = null;
   let zipLoopSrc: AudioBufferSourceNode | null = null;
   let zipLoopGain: GainNode | null = null;
-  let zipLoopDir: "open" | "close" | null = null;
-  let zipLoopBufId: SampleId | null = null;
 
   function assetUrl(path: string) {
     const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -272,9 +277,34 @@ export function getSharedAudio(): SharedAudio {
     }
   }
 
+  function stopTrackElement() {
+    if (trackEl) {
+      try {
+        trackEl.onended = null;
+        trackEl.onerror = null;
+        trackEl.pause();
+        trackEl.removeAttribute("src");
+        trackEl.load();
+      } catch {
+        /* */
+      }
+      trackEl = null;
+    }
+    if (trackSource) {
+      try {
+        trackSource.disconnect();
+      } catch {
+        /* */
+      }
+      trackSource = null;
+    }
+    playingTrack = null;
+  }
+
   function stopBedInternal() {
     clearTimers();
     songPlaying = false;
+    stopTrackElement();
     for (const osc of bedOscs) {
       try {
         osc.stop();
@@ -294,6 +324,58 @@ export function getSharedAudio(): SharedAudio {
     bedNodes = [];
     bedGain = null;
     bedStyle = null;
+  }
+
+  async function playTrackPreview(track: SongHit) {
+    const c = ensure();
+    const dest = musicOut();
+    if (!c || !dest) throw new Error("Audio unavailable");
+    await resumeCtx();
+
+    stopBedInternal();
+    bedStyle = "song";
+    songPlaying = true;
+    experienceBedActive = true;
+    playingTrack = track;
+
+    bedGain = c.createGain();
+    bedGain.gain.value = 0.95;
+    bedGain.connect(dest);
+    if (analyser) bedGain.connect(analyser);
+
+    const el = new Audio();
+    el.crossOrigin = "anonymous";
+    el.preload = "auto";
+    el.src = track.previewUrl;
+    trackEl = el;
+
+    const src = c.createMediaElementSource(el);
+    trackSource = src;
+    src.connect(bedGain);
+
+    el.onended = () => {
+      songPlaying = false;
+      experienceBedActive = false;
+      playingTrack = null;
+      stopBedInternal();
+      restorePeaceIfWanted();
+    };
+    el.onerror = () => {
+      songPlaying = false;
+      experienceBedActive = false;
+      playingTrack = null;
+      stopBedInternal();
+      restorePeaceIfWanted();
+    };
+
+    try {
+      await el.play();
+    } catch (err) {
+      stopBedInternal();
+      experienceBedActive = false;
+      restorePeaceIfWanted();
+      throw err;
+    }
   }
 
   function softChime(freq: number, when: number, dur: number, gainAmt: number) {
@@ -686,8 +768,6 @@ export function getSharedAudio(): SharedAudio {
     const src = zipLoopSrc;
     zipLoopSrc = null;
     zipLoopGain = null;
-    zipLoopDir = null;
-    zipLoopBufId = null;
     if (src) {
       window.setTimeout(() => {
         try {
@@ -1282,6 +1362,7 @@ export function getSharedAudio(): SharedAudio {
     startSong() {
       void resumeCtx().then(() => startSongBed());
     },
+    playTrackPreview,
     stopSong() {
       songPlaying = false;
       experienceBedActive = false;
@@ -1290,6 +1371,9 @@ export function getSharedAudio(): SharedAudio {
     },
     isSongPlaying() {
       return songPlaying;
+    },
+    getPlayingTrack() {
+      return playingTrack;
     },
     getSpectrum(outArr: Float32Array) {
       ensure();

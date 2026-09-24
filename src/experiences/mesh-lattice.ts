@@ -1,5 +1,6 @@
 import { createHud } from "@/engine/hud";
 import { getSharedAudio } from "@/engine/audio";
+import { searchSongs, type SongHit } from "@/engine/songSearch";
 import type {
   ExperienceHandle,
   WebGLExperienceContext,
@@ -8,7 +9,7 @@ import type {
 
 /**
  * Mesh Lattice — WebGL2 perspective mesh.
- * Drag rotates the camera (no shape warp). Play Song drives music-reactive vertices.
+ * Drag rotates the camera. Search + play a song preview to drive music-reactive vertices.
  */
 
 const VERT = `#version 300 es
@@ -168,22 +169,196 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   const shared = getSharedAudio();
   const hud = createHud(host);
   let songOn = false;
+  let searchSeq = 0;
+  let lastPlayingKey = "";
 
-  const songToggle = hud.toggle("Stop song", "Play song", false, (on) => {
-    songOn = on;
-    void audio.resume();
-    if (on) {
-      shared.startSong();
-      haptics.tap(12);
+  const panel = document.createElement("div");
+  panel.className = "song-search";
+  panel.addEventListener("pointerdown", (e) => e.stopPropagation());
+  panel.addEventListener("pointermove", (e) => e.stopPropagation());
+
+  const nowPlaying = document.createElement("div");
+  nowPlaying.className = "song-search__now";
+  nowPlaying.hidden = true;
+
+  const row = document.createElement("div");
+  row.className = "song-search__row";
+
+  const input = document.createElement("input");
+  input.type = "search";
+  input.className = "song-search__input";
+  input.placeholder = "Search songs…";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.setAttribute("aria-label", "Search songs");
+
+  const searchBtn = document.createElement("button");
+  searchBtn.type = "button";
+  searchBtn.className = "experience-hud__btn song-search__go";
+  searchBtn.textContent = "Search";
+
+  const demoBtn = document.createElement("button");
+  demoBtn.type = "button";
+  demoBtn.className = "experience-hud__btn";
+  demoBtn.textContent = "Demo beat";
+  demoBtn.title = "Play a built-in generative beat";
+
+  const stopBtn = document.createElement("button");
+  stopBtn.type = "button";
+  stopBtn.className = "experience-hud__btn";
+  stopBtn.textContent = "Stop";
+  stopBtn.hidden = true;
+
+  const status = document.createElement("p");
+  status.className = "song-search__status";
+  status.textContent = "Search for a track — 30s preview drives the lattice.";
+
+  const results = document.createElement("div");
+  results.className = "song-search__results";
+  results.setAttribute("role", "listbox");
+  results.setAttribute("aria-label", "Search results");
+
+  row.append(input, searchBtn, demoBtn, stopBtn);
+  panel.append(nowPlaying, row, status, results);
+  hud.el.appendChild(panel);
+  hud.el.classList.add("experience-hud--song");
+
+  const syncPlayingUi = () => {
+    songOn = shared.isSongPlaying();
+    const track = shared.getPlayingTrack();
+    const key = songOn ? (track ? `t:${track.id}` : "demo") : "off";
+    if (key === lastPlayingKey) return;
+    lastPlayingKey = key;
+
+    stopBtn.hidden = !songOn;
+    demoBtn.classList.toggle("is-active", songOn && !track);
+    if (songOn && track) {
+      nowPlaying.hidden = false;
+      nowPlaying.innerHTML = "";
+      if (track.artworkUrl) {
+        const img = document.createElement("img");
+        img.src = track.artworkUrl;
+        img.alt = "";
+        img.className = "song-search__art";
+        nowPlaying.appendChild(img);
+      }
+      const meta = document.createElement("div");
+      meta.className = "song-search__meta";
+      const title = document.createElement("strong");
+      title.textContent = track.title;
+      const artist = document.createElement("span");
+      artist.textContent = track.artist;
+      meta.append(title, artist);
+      nowPlaying.appendChild(meta);
+      if (track.trackViewUrl) {
+        const link = document.createElement("a");
+        link.href = track.trackViewUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.className = "song-search__store";
+        link.textContent = "Apple Music";
+        nowPlaying.appendChild(link);
+      }
+    } else if (songOn) {
+      nowPlaying.hidden = false;
+      nowPlaying.textContent = "Demo beat playing";
     } else {
-      shared.stopSong();
-      // Leave peace ambient running after stop
-      void shared.unlockAndStartPeace();
+      nowPlaying.hidden = true;
+      nowPlaying.textContent = "";
+    }
+  };
+
+  const stopMusic = () => {
+    shared.stopSong();
+    void shared.unlockAndStartPeace();
+    syncPlayingUi();
+  };
+
+  const playHit = async (hit: SongHit) => {
+    void audio.resume();
+    status.textContent = `Loading ${hit.title}…`;
+    try {
+      await shared.playTrackPreview(hit);
+      haptics.tap(12);
+      status.textContent = "Preview playing — lattice follows the mix.";
+      results.replaceChildren();
+      syncPlayingUi();
+    } catch {
+      status.textContent = "Couldn’t play that preview. Try another track.";
+      syncPlayingUi();
+    }
+  };
+
+  const runSearch = async () => {
+    const q = input.value.trim();
+    if (!q) {
+      status.textContent = "Type an artist or song name.";
+      return;
+    }
+    const seq = ++searchSeq;
+    status.textContent = "Searching…";
+    results.replaceChildren();
+    try {
+      const hits = await searchSongs(q, 12);
+      if (seq !== searchSeq) return;
+      if (!hits.length) {
+        status.textContent = "No previews found. Try a different search.";
+        return;
+      }
+      status.textContent = `${hits.length} track${hits.length === 1 ? "" : "s"} — tap to play.`;
+      for (const hit of hits) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "song-search__hit";
+        btn.setAttribute("role", "option");
+        if (hit.artworkUrl) {
+          const img = document.createElement("img");
+          img.src = hit.artworkUrl;
+          img.alt = "";
+          img.loading = "lazy";
+          btn.appendChild(img);
+        }
+        const text = document.createElement("span");
+        text.className = "song-search__hit-text";
+        const t = document.createElement("strong");
+        t.textContent = hit.title;
+        const a = document.createElement("span");
+        a.textContent = hit.artist;
+        text.append(t, a);
+        btn.appendChild(text);
+        btn.addEventListener("click", () => {
+          void playHit(hit);
+        });
+        results.appendChild(btn);
+      }
+    } catch {
+      if (seq !== searchSeq) return;
+      status.textContent = "Search failed. Check your connection and try again.";
+    }
+  };
+
+  searchBtn.addEventListener("click", () => {
+    void runSearch();
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void runSearch();
     }
   });
+  demoBtn.addEventListener("click", () => {
+    void audio.resume();
+    shared.startSong();
+    haptics.tap(12);
+    status.textContent = "Demo beat playing.";
+    results.replaceChildren();
+    syncPlayingUi();
+  });
+  stopBtn.addEventListener("click", stopMusic);
 
-  // Don't auto-start lattice bed (conflicts with peace / song). Keep peace until song.
+  // Keep peace ambient until a song starts.
   void audio.resume().then(() => shared.unlockAndStartPeace());
+  syncPlayingUi();
 
   const vs = compile(gl, gl.VERTEX_SHADER, VERT);
   const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
@@ -277,8 +452,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   return {
     update(dt: number) {
       time += dt;
-      songOn = shared.isSongPlaying();
-      songToggle.set(songOn);
+      syncPlayingUi();
 
       audio.getSpectrum(bands);
       const bass = audio.getBass();
@@ -336,8 +510,8 @@ export const meshLattice: WebGLExperienceModule = {
   kind: "webgl",
   name: "Mesh Lattice",
   modality: "WebGL",
-  tagline: "Orbit the lattice. Play a song and watch it dance.",
-  hint: "Drag to rotate. Play song to drive the mesh with music.",
+  tagline: "Orbit the lattice. Search a song and watch it dance.",
+  hint: "Drag to rotate. Search and play a preview to drive the mesh.",
   accent: "#6db8b0",
   badge: "WebGL",
   mount,

@@ -56,7 +56,7 @@ async function startPixi(
     host,
   };
 
-  let handle: ExperienceHandle = await module.mount(ctx);
+  const handle: ExperienceHandle = await module.mount(ctx);
 
   let last = performance.now();
   const ticker = () => {
@@ -137,7 +137,7 @@ async function startWebGL(
     host,
   };
 
-  let handle: ExperienceHandle = await module.mount(ctx);
+  const handle: ExperienceHandle = await module.mount(ctx);
 
   let last = performance.now();
   let raf = 0;
