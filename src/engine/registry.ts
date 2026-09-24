@@ -10,7 +10,6 @@ import { stonePolish } from "@/experiences/stone-polish";
 import { ripplePool } from "@/experiences/ripple-pool";
 import { sliderLoom } from "@/experiences/slider-loom";
 import { meshLattice } from "@/experiences/mesh-lattice";
-import { auroraVeil } from "@/experiences/aurora-veil";
 import { penClicker } from "@/experiences/pen-clicker";
 import { lightSwitch } from "@/experiences/light-switch";
 import { keyboardThock } from "@/experiences/keyboard-thock";
@@ -25,7 +24,6 @@ import { lampToggle } from "@/experiences/lamp-toggle";
 /** Client-only module registry. */
 const MODULES: ExperienceModule[] = [
   meshLattice,
-  auroraVeil,
   sandTray,
   silkFluid,
   ripplePool,

@@ -12,15 +12,6 @@ export const CATALOG: ExperienceMeta[] = [
     badge: "WebGL",
   },
   {
-    id: "aurora-veil",
-    name: "Aurora Veil",
-    modality: "WebGL",
-    tagline: "Full-screen shader veil — soft bands that breathe with sound.",
-    hint: "Touch to bloom. Generative music shapes the field.",
-    accent: "#8fbc8f",
-    badge: "WebGL",
-  },
-  {
     id: "sand-tray",
     name: "Sand Tray",
     modality: "Granular",
@@ -32,9 +23,10 @@ export const CATALOG: ExperienceMeta[] = [
     id: "silk-fluid",
     name: "Silk Fluid",
     modality: "Fluid",
-    tagline: "Viscous pour and swirl — color that bleeds slowly.",
-    hint: "Drag slowly to pour. Flick to swirl.",
+    tagline: "Drag colorful dye through a living fluid field.",
+    hint: "Drag to splash and swirl. Colors bloom as they flow.",
     accent: "#6db3a8",
+    badge: "WebGL",
   },
   {
     id: "ripple-pool",

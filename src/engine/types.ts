@@ -12,7 +12,6 @@ export type ExperienceId =
   | "ripple-pool"
   | "slider-loom"
   | "mesh-lattice"
-  | "aurora-veil"
   | "pen-clicker"
   | "light-switch"
   | "keyboard-thock"
@@ -64,6 +63,8 @@ export interface AudioBus {
   lampToggle(on: boolean, intensity?: number): void;
   /** Soft water stir while dragging a fluid surface. */
   water(intensity?: number): void;
+  /** Flame-like whoosh while dragging dye through the fluid field. */
+  silk(intensity?: number): void;
   /**
    * Start a looping generative ambient bed (for audio-reactive visuals).
    * Safe to call repeatedly; no-ops when muted until unmuted.

@@ -25,6 +25,7 @@ export type SharedAudio = AudioBus & {
   mouseClick: (intensity?: number, pitch?: number) => void;
   lampToggle: (on: boolean, intensity?: number) => void;
   water: (intensity?: number) => void;
+  silk: (intensity?: number) => void;
 };
 
 let shared: SharedAudio | null = null;
@@ -57,6 +58,7 @@ export function getSharedAudio(): SharedAudio {
   let lastZip = 0;
   let lastElastic = 0;
   let lastWater = 0;
+  let lastSilk = 0;
   let analyser: AnalyserNode | null = null;
   let freqData: Uint8Array<ArrayBuffer> | null = null;
   let bedNodes: AudioNode[] = [];
@@ -912,6 +914,79 @@ export function getSharedAudio(): SharedAudio {
     src.stop(t + 0.13);
   }
 
+  /** Flame-like whoosh — rushing air + soft low burn while dragging dye. */
+  function silk(intensity = 0.5) {
+    if (muted) return;
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const t = now();
+    if (t - lastSilk < 0.045) return;
+    lastSilk = t;
+
+    const dur = 0.2 + intensity * 0.22;
+    const n = Math.ceil(c.sampleRate * dur);
+    const noiseBuf = c.createBuffer(1, n, c.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    // Pink-ish noise (simple 1/f approx) reads more like fire/air than white hiss
+    let b0 = 0;
+    let b1 = 0;
+    let b2 = 0;
+    for (let i = 0; i < n; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.969 * b2 + white * 0.153852;
+      const pink = (b0 + b1 + b2 + white * 0.18) * 0.35;
+      const env = Math.sin((Math.PI * i) / n);
+      data[i] = pink * env;
+    }
+
+    const mkNoise = () => {
+      const src = c.createBufferSource();
+      src.buffer = noiseBuf;
+      return src;
+    };
+
+    // Low burn / torch body
+    const rumble = mkNoise();
+    const rumbleLp = c.createBiquadFilter();
+    rumbleLp.type = "lowpass";
+    rumbleLp.frequency.setValueAtTime(110 + intensity * 140, t);
+    rumbleLp.frequency.exponentialRampToValueAtTime(55, t + dur);
+    rumbleLp.Q.value = 0.7;
+    const rumbleG = c.createGain();
+    rumbleG.gain.setValueAtTime(0.0001, t);
+    rumbleG.gain.exponentialRampToValueAtTime(0.32 + intensity * 0.34, t + 0.03);
+    rumbleG.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    // Bright rushing whoosh (the “flame lick”)
+    const air = mkNoise();
+    const airBp = c.createBiquadFilter();
+    airBp.type = "bandpass";
+    const airF0 = 420 + intensity * 700 + Math.random() * 120;
+    airBp.frequency.setValueAtTime(airF0 * 0.45, t);
+    airBp.frequency.exponentialRampToValueAtTime(airF0, t + dur * 0.35);
+    airBp.frequency.exponentialRampToValueAtTime(airF0 * 0.28, t + dur);
+    airBp.Q.value = 0.75;
+    const airG = c.createGain();
+    airG.gain.setValueAtTime(0.0001, t);
+    airG.gain.exponentialRampToValueAtTime(0.14 + intensity * 0.24, t + 0.02);
+    airG.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    rumble.connect(rumbleLp);
+    rumbleLp.connect(rumbleG);
+    rumbleG.connect(m);
+    air.connect(airBp);
+    airBp.connect(airG);
+    airG.connect(m);
+
+    rumble.start(t);
+    air.start(t);
+    rumble.stop(t + dur + 0.02);
+    air.stop(t + dur + 0.02);
+  }
+
   function buttonPress(phase: "down" | "up" = "down", intensity = 0.9) {
     if (muted) return;
     void ensureSamples();
@@ -1186,6 +1261,7 @@ export function getSharedAudio(): SharedAudio {
     mouseClick,
     lampToggle,
     water,
+    silk,
     startBed(style = "lattice") {
       ensure();
       if (style === "peace") {

@@ -27,7 +27,6 @@ Also works with `npm install && npm run dev`.
 | Name | Modality |
 |------|----------|
 | Mesh Lattice | WebGL (audio mesh) |
-| Aurora Veil | WebGL (shader field) |
 | Sand Tray | Granular |
 | Silk Fluid | Fluid |
 | Ripple Pool | Fluid |
