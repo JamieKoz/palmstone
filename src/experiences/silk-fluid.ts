@@ -140,15 +140,12 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   gl.clearColor(0, 0, 0, 1);
 
   function compileShader(type: number, source: string, keywords: string[] | null = null) {
-    let src = source;
+    // Always emit #version first — keyword #defines must never precede it.
+    let body = source.replace(/^\uFEFF/, "").replace(/^#version[^\r\n]*\r?\n?/, "");
     if (keywords?.length) {
-      const defines = keywords.map((k) => `#define ${k}\n`).join("");
-      // #version must stay first — insert defines immediately after it
-      const versionMatch = source.match(/^(\s*#version[^\n]*\n)/);
-      src = versionMatch
-        ? versionMatch[1] + defines + source.slice(versionMatch[1].length)
-        : defines + source;
+      body = `${keywords.map((k) => `#define ${k}`).join("\n")}\n${body}`;
     }
+    const src = `#version 300 es\n${body}`;
     const shader = gl.createShader(type)!;
     gl.shaderSource(shader, src);
     gl.compileShader(shader);
