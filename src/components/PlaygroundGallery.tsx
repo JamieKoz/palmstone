@@ -5,7 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
 import { PageRevealWipe } from "@/components/PageRevealWipe";
-import { CATALOG, getMeta, MODALITIES } from "@/engine/catalog";
+import {
+  experiencesInFolder,
+  getMeta,
+  PLAY_FOLDERS,
+  type PlayFolder,
+} from "@/engine/catalog";
+import type { ExperienceMeta } from "@/engine/types";
 import {
   getFavourites,
   getPreferredModalities,
@@ -13,12 +19,17 @@ import {
   toggleFavourite,
 } from "@/engine/storage";
 
+type OpenFolder =
+  | { kind: "play"; folder: PlayFolder }
+  | { kind: "favourites" }
+  | null;
+
 export function PlaygroundGallery() {
   const [favs, setFavs] = useState<string[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
-  const [filter, setFilter] = useState<"all" | "favourites" | "webgl" | string>("all");
   const [ready, setReady] = useState(false);
+  const [open, setOpen] = useState<OpenFolder>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,48 +45,59 @@ export function PlaygroundGallery() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const continueMeta = useMemo(() => {
     if (!ready) return undefined;
     const id = recents[0];
     return id ? getMeta(id) : undefined;
   }, [ready, recents]);
 
-  const forYou = useMemo(() => {
-    if (!ready || prefs.length === 0) return [];
-    return CATALOG.filter(
-      (e) => prefs.includes(e.modality) && e.id !== continueMeta?.id,
-    ).slice(0, 4);
-  }, [ready, prefs, continueMeta]);
+  const favExperiences = useMemo(
+    () => favs.map((id) => getMeta(id)).filter(Boolean) as ExperienceMeta[],
+    [favs],
+  );
 
-  const list = useMemo(() => {
-    let base = [...CATALOG];
-    if (filter === "favourites") base = base.filter((e) => favs.includes(e.id));
-    else if (filter === "webgl") base = base.filter((e) => e.badge === "WebGL");
-    else if (filter !== "all" && MODALITIES.includes(filter)) {
-      base = base.filter((e) => e.modality === filter);
-    }
+  const folderItems = useMemo(() => {
+    return PLAY_FOLDERS.map((folder) => ({
+      folder,
+      items: experiencesInFolder(folder),
+    })).filter((f) => f.items.length > 0);
+  }, []);
 
-    if (filter === "all") {
-      const prefSet = new Set(prefs);
-      const score = (id: string) => {
-        const meta = getMeta(id);
-        const fi = favs.indexOf(id);
-        const ri = recents.indexOf(id);
-        const pref = meta && prefSet.has(meta.modality) ? 200 : 0;
-        const web = meta?.badge === "WebGL" ? 40 : 0;
-        return (fi >= 0 ? 1000 - fi : 0) + (ri >= 0 ? 100 - ri : 0) + pref + web;
-      };
-      base.sort((a, b) => score(b.id) - score(a.id));
-    }
-    return base;
-  }, [favs, recents, filter, prefs]);
+  const openItems: ExperienceMeta[] =
+    open?.kind === "favourites"
+      ? favExperiences
+      : open?.kind === "play"
+        ? experiencesInFolder(open.folder)
+        : [];
 
-  const filterChips: { id: string; label: string }[] = [
-    { id: "all", label: "All" },
-    { id: "favourites", label: "Favourites" },
-    { id: "webgl", label: "WebGL" },
-    ...MODALITIES.filter((m) => m !== "WebGL").map((m) => ({ id: m, label: m })),
-  ];
+  const openTitle =
+    open?.kind === "favourites"
+      ? "Favourites"
+      : open?.kind === "play"
+        ? open.folder.name
+        : "";
+
+  const openAccent =
+    open?.kind === "favourites"
+      ? "var(--sand)"
+      : open?.kind === "play"
+        ? open.folder.accent
+        : "var(--jade)";
+
+  const subtitle = !ready
+    ? "Pick a feel. Stay as long as you like."
+    : prefs.length > 0
+      ? `You lean ${prefs[0].toLowerCase()} — open a folder to play.`
+      : "Open a folder. Stay as long as you like.";
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
@@ -93,11 +115,7 @@ export function PlaygroundGallery() {
             >
               Palmstone
             </Link>
-            <p className="mt-2 max-w-md text-[var(--mist)]">
-              {prefs.length > 0
-                ? `Pick up a ${prefs[0].toLowerCase()} feel — or wander.`
-                : "Pick a feel. Stay as long as you like."}
-            </p>
+            <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
           </div>
           <MusicWaveToggle className="sound-wave-btn--gallery" />
         </header>
@@ -106,7 +124,7 @@ export function PlaygroundGallery() {
           <Link
             href={`/playground/${continueMeta.id}`}
             onClick={() => onExperienceNavClick()}
-            className="mb-6 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
+            className="mb-8 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
             style={{
               background: "color-mix(in oklab, var(--panel) 70%, transparent)",
               borderLeft: `3px solid ${continueMeta.accent}`,
@@ -122,123 +140,163 @@ export function PlaygroundGallery() {
           </Link>
         )}
 
-        {forYou.length > 0 && filter === "all" && (
-          <section className="mb-8">
-            <h2 className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--fade)]">
-              For you
-            </h2>
-            <ul className="flex flex-col gap-1">
-              {forYou.map((exp) => (
-                <li key={exp.id}>
-                  <Link
-                    href={`/playground/${exp.id}`}
-                    onClick={() => onExperienceNavClick()}
-                    className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-[color-mix(in_oklab,var(--panel)_60%,transparent)]"
-                  >
-                    <span
-                      className="h-8 w-1 shrink-0 rounded-full"
-                      style={{ background: exp.accent }}
-                      aria-hidden
-                    />
-                    <span className="font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
-                      {exp.name}
-                    </span>
-                    <span className="text-xs uppercase tracking-[0.14em] text-[var(--fade)]">
-                      {exp.modality}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <div className="folder-grid">
+          {favExperiences.length > 0 && (
+            <button
+              type="button"
+              className="folder-tile"
+              onClick={() => {
+                playUiClick();
+                setOpen({ kind: "favourites" });
+              }}
+            >
+              <FolderPreview
+                accents={favExperiences.slice(0, 4).map((e) => e.accent)}
+                tint="color-mix(in oklab, var(--sand) 35%, var(--panel))"
+              />
+              <span className="folder-tile__name">Favourites</span>
+              <span className="folder-tile__count">{favExperiences.length}</span>
+            </button>
+          )}
 
-        <div className="mb-6 flex items-center gap-3">
-          <label htmlFor="playground-filter" className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">
-            Show
-          </label>
-          <select
-            id="playground-filter"
-            value={filter}
-            onChange={(e) => {
-              playUiClick();
-              setFilter(e.target.value);
-            }}
-            className="min-w-[11rem] appearance-none rounded-full border-0 bg-[color-mix(in_oklab,var(--panel)_80%,transparent)] bg-[length:12px] bg-[position:right_14px_center] bg-no-repeat px-4 py-2.5 pr-10 text-sm text-[var(--ink)] outline-none transition hover:bg-[color-mix(in_oklab,var(--panel)_95%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--jade)]"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a8b0a6' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
-            }}
-          >
-            {filterChips.map(({ id, label }) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </select>
+          {folderItems.map(({ folder, items }, i) => (
+            <button
+              type="button"
+              key={folder.id}
+              className="folder-tile"
+              style={{ animationDelay: `${i * 50}ms` }}
+              onClick={() => {
+                playUiClick();
+                setOpen({ kind: "play", folder });
+              }}
+            >
+              <FolderPreview
+                accents={items.slice(0, 4).map((e) => e.accent)}
+                tint={`color-mix(in oklab, ${folder.accent} 28%, var(--panel))`}
+              />
+              <span className="folder-tile__name">{folder.name}</span>
+              <span className="folder-tile__blurb">{folder.blurb}</span>
+            </button>
+          ))}
         </div>
-
-        {list.length === 0 ? (
-          <p className="text-[var(--mist)]">Nothing here yet — try another filter.</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {list.map((exp, i) => {
-              const starred = favs.includes(exp.id);
-              return (
-                <li key={exp.id} className="group relative">
-                  <Link
-                    href={`/playground/${exp.id}`}
-                    onClick={() => onExperienceNavClick()}
-                    className="gallery-row flex items-center gap-4 rounded-2xl px-4 py-4 transition sm:gap-6 sm:px-5 sm:py-5"
-                    style={{ animationDelay: `${i * 40}ms` }}
-                  >
-                    <span
-                      className="h-10 w-1.5 shrink-0 rounded-full sm:h-12"
-                      style={{ background: exp.accent }}
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1 pr-10 sm:pr-20">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)] sm:text-2xl">
-                          {exp.name}
-                        </h2>
-                        <span className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">
-                          {exp.modality}
-                        </span>
-                        {exp.badge && (
-                          <span className="rounded-full bg-[color-mix(in_oklab,var(--jade)_25%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--jade)]">
-                            {exp.badge}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 truncate text-sm text-[var(--mist)] sm:whitespace-normal">
-                        {exp.tagline}
-                      </p>
-                    </div>
-                    <span className="hidden text-sm text-[var(--fade)] transition group-hover:text-[var(--jade)] sm:inline">
-                      Play
-                    </span>
-                  </Link>
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full px-3 py-2 text-lg sm:right-16"
-                    style={{ color: starred ? "var(--sand)" : "var(--fade)" }}
-                    aria-label={starred ? "Remove favourite" : "Favourite"}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      playUiClick();
-                      toggleFavourite(exp.id);
-                      setFavs(getFavourites());
-                    }}
-                  >
-                    {starred ? "★" : "☆"}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </div>
+
+      {open && (
+        <div
+          className="folder-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label={openTitle}
+        >
+          <button
+            type="button"
+            className="folder-sheet__backdrop"
+            aria-label="Close folder"
+            onClick={() => {
+              playUiClick();
+              setOpen(null);
+            }}
+          />
+          <div
+            className="folder-sheet__panel"
+            style={{ ["--folder-accent" as string]: openAccent }}
+          >
+            <div className="folder-sheet__head">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Folder</p>
+                <h2 className="mt-1 font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">
+                  {openTitle}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="folder-sheet__close"
+                onClick={() => {
+                  playUiClick();
+                  setOpen(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <ul className="folder-sheet__list">
+              {openItems.map((exp) => {
+                const starred = favs.includes(exp.id);
+                return (
+                  <li key={exp.id} className="group relative">
+                    <Link
+                      href={`/playground/${exp.id}`}
+                      onClick={() => onExperienceNavClick()}
+                      className="folder-sheet__row"
+                    >
+                      <span
+                        className="folder-sheet__swatch"
+                        style={{ background: exp.accent }}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
+                          {exp.name}
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm text-[var(--mist)]">
+                          {exp.tagline}
+                        </span>
+                      </span>
+                      {exp.badge && (
+                        <span className="hidden rounded-full bg-[color-mix(in_oklab,var(--jade)_25%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--jade)] sm:inline">
+                          {exp.badge}
+                        </span>
+                      )}
+                    </Link>
+                    <button
+                      type="button"
+                      className="folder-sheet__fav"
+                      style={{ color: starred ? "var(--sand)" : "var(--fade)" }}
+                      aria-label={starred ? "Remove favourite" : "Favourite"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        playUiClick();
+                        toggleFavourite(exp.id);
+                        setFavs(getFavourites());
+                      }}
+                    >
+                      {starred ? "★" : "☆"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FolderPreview({
+  accents,
+  tint,
+}: {
+  accents: string[];
+  tint: string;
+}) {
+  const cells = [0, 1, 2, 3].map((i) => accents[i] ?? "transparent");
+  return (
+    <div className="folder-preview" style={{ background: tint }}>
+      {cells.map((c, i) => (
+        <span
+          key={i}
+          className="folder-preview__cell"
+          style={{
+            background:
+              c === "transparent"
+                ? "color-mix(in oklab, var(--bg) 35%, transparent)"
+                : c,
+          }}
+        />
+      ))}
     </div>
   );
 }

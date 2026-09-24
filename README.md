@@ -13,13 +13,16 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Also works with `npm install && npm run dev`.
 
+Mesh Lattice song search uses [Deezer’s free search API](https://developers.deezer.com/api) (30s MP3 previews, no API key).
+
 ## What's shipping
 
 - Landing (brand + Enter / Continue)
-- Gallery with favourites, WebGL filter, continue strip
+- Gallery with iOS-style category folders, favourites, continue strip
 - Fullscreen play with mute, haptics, favourite
 - PixiJS experiences + **native WebGL2** audio-reactive experiences
 - Generative ambient beds (Web Audio analyser) — mute-safe visuals
+- Song search in Mesh Lattice (Deezer 30s previews)
 - localStorage favourites / recents (Phase 1 soft personalization; cloud accounts later)
 
 ### Experiences

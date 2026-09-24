@@ -118,9 +118,9 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         const pull = Math.hypot(n.x - n.ox, n.y - n.oy);
         peakStretch = Math.max(peakStretch, pull);
         stretchAcc += pull * dt;
-        if (stretchAcc > 8) {
+        if (stretchAcc > 14) {
           const tension = Math.min(1, pull / 120);
-          audio.elastic(0.45 + tension * 0.55, 0.7 + tension * 0.9);
+          audio.elastic(0.35 + tension * 0.4, 0.75 + tension * 0.65);
           if (tension > 0.3) haptics.tap(4);
           stretchAcc = 0;
         }

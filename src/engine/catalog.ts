@@ -7,7 +7,7 @@ export const CATALOG: ExperienceMeta[] = [
     name: "Mesh Lattice",
     modality: "WebGL",
     tagline: "Orbit the lattice. Search a song and watch it dance.",
-    hint: "Drag to rotate. Search and play a preview to drive the mesh.",
+    hint: "Drag to orbit, scroll to zoom. Search or play Demo to drive the mesh.",
     accent: "#6db8b0",
     badge: "WebGL",
   },
@@ -184,3 +184,48 @@ export function isExperienceId(id: string): id is ExperienceId {
 }
 
 export const MODALITIES = Array.from(new Set(CATALOG.map((e) => e.modality)));
+
+/** Condensed home-screen folders (iOS-style). */
+export type PlayFolder = {
+  id: string;
+  name: string;
+  blurb: string;
+  accent: string;
+  modalities: string[];
+};
+
+export const PLAY_FOLDERS: PlayFolder[] = [
+  {
+    id: "visual",
+    name: "Visual",
+    blurb: "Mesh, fluid, polish",
+    accent: "#6db8b0",
+    modalities: ["WebGL", "Fluid", "Texture"],
+  },
+  {
+    id: "physics",
+    name: "Physics",
+    blurb: "Pull, orbit, gears",
+    accent: "#c9a66b",
+    modalities: ["Elastic", "Force", "Spatial", "Mechanical", "Slide"],
+  },
+  {
+    id: "buttons",
+    name: "Clickers and Buttons",
+    blurb: "Clicks, switches, press",
+    accent: "#7a8a98",
+    modalities: ["Click", "Toggle", "Press"],
+  },
+  {
+    id: "fidgets",
+    name: "Fidgets",
+    blurb: "Fidget, pop, rhythm, sand",
+    accent: "#c45a4a",
+    modalities: ["Fidget", "Pop", "Rhythm", "Granular"],
+  },
+];
+
+export function experiencesInFolder(folder: PlayFolder): ExperienceMeta[] {
+  const set = new Set(folder.modalities);
+  return CATALOG.filter((e) => set.has(e.modality));
+}

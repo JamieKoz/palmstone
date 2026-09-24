@@ -11,7 +11,7 @@ export type SharedAudio = AudioBus & {
   setMusicMuted: (muted: boolean) => void;
   isMusicMuted: () => boolean;
   startSong: () => void;
-  /** Play a remote preview (e.g. iTunes 30s) into the music analyser bus. */
+  /** Play a remote 30s song preview into the music analyser bus. */
   playTrackPreview: (track: SongHit) => Promise<void>;
   stopSong: () => void;
   isSongPlaying: () => boolean;
@@ -162,7 +162,14 @@ export function getSharedAudio(): SharedAudio {
   /** Play a one-shot sample. Returns false if unavailable (caller may fallback). */
   function playSample(
     id: SampleId,
-    opts: { gain?: number; rate?: number; duration?: number; offset?: number } = {},
+    opts: {
+      gain?: number;
+      rate?: number;
+      duration?: number;
+      offset?: number;
+      /** Soft fade-in seconds (avoids clicky chops on looped scrapes). */
+      attack?: number;
+    } = {},
   ): boolean {
     if (muted) return true; // swallow — don't procedural-fallback while muted
     const c = ensure();
@@ -177,11 +184,17 @@ export function getSharedAudio(): SharedAudio {
     const g = c.createGain();
     const gainAmt = Math.max(0.0001, opts.gain ?? 0.85);
     const offset = Math.max(0, Math.min(buf.duration * 0.95, opts.offset ?? 0));
-    g.gain.setValueAtTime(gainAmt, t);
+    const attack = Math.max(0, opts.attack ?? 0);
+    if (attack > 0) {
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gainAmt, t + attack);
+    } else {
+      g.gain.setValueAtTime(gainAmt, t);
+    }
     if (opts.duration != null && opts.duration > 0) {
       const dur = opts.duration;
-      g.gain.setValueAtTime(gainAmt, t);
-      g.gain.setValueAtTime(gainAmt, t + dur * 0.7);
+      const hold = Math.max(attack, dur * 0.55);
+      g.gain.setValueAtTime(gainAmt, t + hold);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       src.start(t, offset, dur + 0.03);
       src.stop(t + dur + 0.04);
@@ -238,8 +251,8 @@ export function getSharedAudio(): SharedAudio {
       musicGain.connect(master);
 
       analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.78;
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.82;
       freqData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
     }
     return ctx;
@@ -332,21 +345,58 @@ export function getSharedAudio(): SharedAudio {
     if (!c || !dest) throw new Error("Audio unavailable");
     await resumeCtx();
 
+    const streamUrl = track.previewUrl?.trim();
+    if (!streamUrl) throw new Error("No preview available for this track");
+
     stopBedInternal();
     bedStyle = "song";
     songPlaying = true;
     experienceBedActive = true;
-    playingTrack = track;
+    playingTrack = { ...track, previewUrl: streamUrl };
 
     bedGain = c.createGain();
     bedGain.gain.value = 0.95;
     bedGain.connect(dest);
     if (analyser) bedGain.connect(analyser);
 
+    // Prefer decode → BufferSource (reliable spectrum + gain). Fall back to media element.
+    try {
+      const res = await fetch(streamUrl, { mode: "cors" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.arrayBuffer();
+      // Re-check after await — user may have stopped / switched tracks.
+      if (!songPlaying || playingTrack?.id !== track.id || !bedGain) return;
+      const buf = await c.decodeAudioData(raw.slice(0));
+      if (!songPlaying || playingTrack?.id !== track.id || !bedGain) return;
+
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.loop = Boolean(track.loop);
+      src.connect(bedGain);
+      if (!track.loop) {
+        src.onended = () => {
+          if (playingTrack?.id !== track.id) return;
+          songPlaying = false;
+          experienceBedActive = false;
+          playingTrack = null;
+          stopBedInternal();
+          restorePeaceIfWanted();
+        };
+      }
+      src.start();
+      bedOscs.push(src as unknown as OscillatorNode);
+      return;
+    } catch {
+      /* fall through to <audio> */
+    }
+
+    if (!songPlaying || playingTrack?.id !== track.id || !bedGain) return;
+
     const el = new Audio();
     el.crossOrigin = "anonymous";
     el.preload = "auto";
-    el.src = track.previewUrl;
+    el.loop = Boolean(track.loop);
+    el.src = streamUrl;
     trackEl = el;
 
     const src = c.createMediaElementSource(el);
@@ -354,6 +404,7 @@ export function getSharedAudio(): SharedAudio {
     src.connect(bedGain);
 
     el.onended = () => {
+      if (track.loop) return;
       songPlaying = false;
       experienceBedActive = false;
       playingTrack = null;
@@ -512,15 +563,16 @@ export function getSharedAudio(): SharedAudio {
 
   function startSongBed() {
     const c = ensure();
-    const m = master;
-    if (!c || !m) return;
+    const dest = musicOut();
+    if (!c || !dest) return;
     stopBedInternal();
     bedStyle = "song";
     songPlaying = true;
     experienceBedActive = true;
+    playingTrack = null;
     bedGain = c.createGain();
     bedGain.gain.value = 0.85;
-    bedGain.connect(m);
+    bedGain.connect(dest);
     if (analyser) bedGain.connect(analyser);
 
     // Soft pad under the song
@@ -838,20 +890,21 @@ export function getSharedAudio(): SharedAudio {
     stopZipInternal();
   }
 
-  /** Rubber-band stretch — rising scrape while tension builds. */
+  /** Rubber-band stretch — soft rising scrape while tension builds. */
   function elastic(intensity = 0.5, pitch = 1) {
     if (muted) return;
     const t = now();
-    if (t - lastElastic < 0.04) return;
+    if (t - lastElastic < 0.11) return;
     lastElastic = t;
     void ensureSamples();
-    // Sample has ~130ms lead-in silence — skip it and play a stretch bite
+    // Soft grains — quieter, gentle attack, tighter offset so chops don't click
     if (
       playSample("elasticStretch", {
-        gain: 0.85 * intensity,
-        rate: 0.75 + pitch * 0.35,
-        offset: 0.14 + Math.random() * 0.35,
-        duration: 0.22,
+        gain: 0.26 * intensity,
+        rate: 0.82 + pitch * 0.22,
+        offset: 0.16 + Math.random() * 0.1,
+        duration: 0.42,
+        attack: 0.05,
       })
     ) {
       return;
@@ -860,59 +913,61 @@ export function getSharedAudio(): SharedAudio {
     const m = out();
     if (!c || !m) return;
 
-    const f0 = 180 * pitch;
+    const f0 = 140 * pitch;
     const osc = c.createOscillator();
-    osc.type = "sawtooth";
+    osc.type = "triangle";
     osc.frequency.setValueAtTime(f0, t);
-    osc.frequency.exponentialRampToValueAtTime(f0 * (1.15 + intensity * 0.35), t + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(f0 * (1.08 + intensity * 0.2), t + 0.14);
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.14 * intensity, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+    g.gain.exponentialRampToValueAtTime(0.06 * intensity, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
     const bp = c.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.setValueAtTime(600 * pitch, t);
-    bp.frequency.exponentialRampToValueAtTime(1400 * pitch, t + 0.09);
-    bp.Q.value = 2.2;
+    bp.frequency.setValueAtTime(420 * pitch, t);
+    bp.frequency.exponentialRampToValueAtTime(780 * pitch, t + 0.14);
+    bp.Q.value = 1.4;
     osc.connect(bp);
     bp.connect(g);
     g.connect(m);
 
-    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * 0.09), c.sampleRate);
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * 0.12), c.sampleRate);
     const data = buf.getChannelData(0);
     for (let i = 0; i < data.length; i++) {
-      const env = Math.pow(1 - i / data.length, 1.4);
+      const env = Math.pow(1 - i / data.length, 2.2);
       data[i] = (Math.random() * 2 - 1) * env;
     }
     const noise = c.createBufferSource();
     noise.buffer = buf;
     const nf = c.createBiquadFilter();
     nf.type = "bandpass";
-    nf.frequency.value = 900 * pitch + intensity * 400;
-    nf.Q.value = 1.1;
+    nf.frequency.value = 650 * pitch + intensity * 180;
+    nf.Q.value = 0.9;
     const ng = c.createGain();
-    ng.gain.value = 0.16 * intensity;
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.05 * intensity, t + 0.035);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
     noise.connect(nf);
     nf.connect(ng);
     ng.connect(m);
 
     const body = c.createOscillator();
     body.type = "sine";
-    body.frequency.setValueAtTime(90 * pitch, t);
-    body.frequency.linearRampToValueAtTime(110 * pitch + intensity * 40, t + 0.1);
+    body.frequency.setValueAtTime(70 * pitch, t);
+    body.frequency.linearRampToValueAtTime(85 * pitch + intensity * 20, t + 0.14);
     const bodyG = c.createGain();
     bodyG.gain.setValueAtTime(0.0001, t);
-    bodyG.gain.exponentialRampToValueAtTime(0.12 * intensity, t + 0.008);
-    bodyG.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    bodyG.gain.exponentialRampToValueAtTime(0.055 * intensity, t + 0.03);
+    bodyG.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
     body.connect(bodyG);
     bodyG.connect(m);
 
     osc.start(t);
-    osc.stop(t + 0.12);
+    osc.stop(t + 0.19);
     noise.start(t);
-    noise.stop(t + 0.1);
+    noise.stop(t + 0.15);
     body.start(t);
-    body.stop(t + 0.13);
+    body.stop(t + 0.19);
   }
 
   function elasticRelease(intensity = 0.7, pitch = 1) {
@@ -1366,6 +1421,7 @@ export function getSharedAudio(): SharedAudio {
     stopSong() {
       songPlaying = false;
       experienceBedActive = false;
+      playingTrack = null;
       stopBedInternal();
       restorePeaceIfWanted();
     },
@@ -1384,13 +1440,16 @@ export function getSharedAudio(): SharedAudio {
       analyser.getByteFrequencyData(freqData);
       const n = outArr.length;
       const bins = freqData.length;
+      // Log-spaced bands — more resolution in the musically useful lows/mids.
       for (let i = 0; i < n; i++) {
-        const start = Math.floor((i / n) * bins);
-        const end = Math.floor(((i + 1) / n) * bins);
+        const t0 = i / n;
+        const t1 = (i + 1) / n;
+        const start = Math.min(bins - 1, Math.floor(Math.pow(bins, t0)));
+        const end = Math.min(bins, Math.max(start + 1, Math.floor(Math.pow(bins, t1))));
         let sum = 0;
-        const count = Math.max(1, end - start);
         for (let j = start; j < end; j++) sum += freqData[j];
-        outArr[i] = sum / count / 255;
+        const v = sum / (end - start) / 255;
+        outArr[i] = Math.pow(Math.min(1, v * 1.15), 0.8);
       }
     },
     getBass() {
@@ -1398,10 +1457,11 @@ export function getSharedAudio(): SharedAudio {
       if (!analyser || !freqData) return 0;
       analyser.getByteFrequencyData(freqData);
       let sum = 0;
-      const n = Math.min(6, freqData.length);
+      // Lowest ~3% of bins (log-ish bass pocket)
+      const n = Math.max(4, Math.floor(freqData.length * 0.03));
       for (let i = 0; i < n; i++) sum += freqData[i];
       const v = sum / n / 255;
-      bassSmooth = bassSmooth * 0.8 + v * 0.2;
+      bassSmooth = bassSmooth * 0.72 + v * 0.28;
       return bassSmooth;
     },
     destroy() {

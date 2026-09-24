@@ -1,86 +1,97 @@
-/** Song search via iTunes Search API (JSONP — no CORS, no API key). */
+/** Song search via Deezer’s free API (30s MP3 previews, no key). */
 
 export type SongHit = {
   id: number;
   title: string;
   artist: string;
+  /** Preview / stream MP3 URL. */
   previewUrl: string;
   artworkUrl: string | null;
   trackViewUrl: string | null;
+  /** Loop playback (used for the local demo track). */
+  loop?: boolean;
 };
 
-type ItunesResult = {
-  trackId?: number;
-  trackName?: string;
-  artistName?: string;
-  previewUrl?: string;
-  artworkUrl60?: string;
-  artworkUrl100?: string;
-  trackViewUrl?: string;
+type DeezerArtist = { name?: string };
+type DeezerAlbum = { cover_medium?: string; cover_small?: string };
+type DeezerTrack = {
+  id?: number;
+  title?: string;
+  preview?: string;
+  link?: string;
+  artist?: DeezerArtist;
+  album?: DeezerAlbum;
 };
 
-type ItunesResponse = {
-  resultCount?: number;
-  results?: ItunesResult[];
+type DeezerSearchResponse = {
+  data?: DeezerTrack[];
+  error?: { message?: string };
 };
 
-function jsonp<T>(url: string, timeoutMs = 10000): Promise<T> {
+/** Deezer search supports JSONP — avoids CORS issues on api.deezer.com. */
+function deezerJsonp(url: string): Promise<DeezerSearchResponse> {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return Promise.reject(new Error("Song search is client-only"));
+  }
+
   return new Promise((resolve, reject) => {
-    const cb = `__itunes_cb_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+    const cb = `dzcb_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const script = document.createElement("script");
-    let settled = false;
-
     const cleanup = () => {
-      settled = true;
-      delete (window as unknown as Record<string, unknown>)[cb];
       script.remove();
-      window.clearTimeout(timer);
+      try {
+        delete (window as unknown as Record<string, unknown>)[cb];
+      } catch {
+        (window as unknown as Record<string, unknown>)[cb] = undefined;
+      }
     };
 
     const timer = window.setTimeout(() => {
-      if (settled) return;
       cleanup();
       reject(new Error("Song search timed out"));
-    }, timeoutMs);
+    }, 12_000);
 
-    (window as unknown as Record<string, unknown>)[cb] = (data: T) => {
-      if (settled) return;
+    (window as unknown as Record<string, unknown>)[cb] = (data: DeezerSearchResponse) => {
+      window.clearTimeout(timer);
       cleanup();
-      resolve(data);
+      resolve(data ?? {});
     };
 
     script.onerror = () => {
-      if (settled) return;
+      window.clearTimeout(timer);
       cleanup();
-      reject(new Error("Song search failed"));
+      reject(new Error("Song search failed to load"));
     };
 
     const sep = url.includes("?") ? "&" : "?";
-    script.src = `${url}${sep}callback=${cb}`;
-    document.body.appendChild(script);
+    script.src = `${url}${sep}output=jsonp&callback=${cb}`;
+    document.head.appendChild(script);
   });
 }
 
-/** Search Apple Music / iTunes for tracks that have a 30s preview. */
-export async function searchSongs(query: string, limit = 10): Promise<SongHit[]> {
+/** Search for tracks with playable previews. */
+export async function searchSongs(query: string, limit = 12): Promise<SongHit[]> {
   const q = query.trim();
   if (!q) return [];
 
+  const capped = Math.max(1, Math.min(25, limit));
   const url =
-    `https://itunes.apple.com/search?term=${encodeURIComponent(q)}` +
-    `&media=music&entity=song&limit=${Math.max(1, Math.min(25, limit))}`;
+    `https://api.deezer.com/search?q=${encodeURIComponent(q)}` + `&limit=${capped}`;
 
-  const data = await jsonp<ItunesResponse>(url);
-  const results = data.results ?? [];
+  const data = await deezerJsonp(url);
+  if (data.error?.message) throw new Error(data.error.message);
 
-  return results
-    .filter((r) => r.previewUrl && r.trackName && r.artistName && r.trackId != null)
-    .map((r) => ({
-      id: r.trackId!,
-      title: r.trackName!,
-      artist: r.artistName!,
-      previewUrl: r.previewUrl!.replace(/^http:\/\//i, "https://"),
-      artworkUrl: (r.artworkUrl100 ?? r.artworkUrl60 ?? null)?.replace(/^http:\/\//i, "https://") ?? null,
-      trackViewUrl: r.trackViewUrl?.replace(/^http:\/\//i, "https://") ?? null,
-    }));
+  const hits: SongHit[] = [];
+  for (const r of data.data ?? []) {
+    if (!r.preview || !r.id || !r.title) continue;
+    hits.push({
+      id: r.id,
+      title: r.title,
+      artist: r.artist?.name || "Unknown",
+      previewUrl: r.preview,
+      artworkUrl: r.album?.cover_medium || r.album?.cover_small || null,
+      trackViewUrl: r.link ?? null,
+    });
+  }
+  return hits;
 }
