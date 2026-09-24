@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Figtree, Fraunces } from "next/font/google";
 import { SiteAudio } from "@/components/SiteAudio";
 import "./globals.css";
@@ -18,6 +18,12 @@ export const metadata: Metadata = {
   description:
     "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
   applicationName: "Palmstone",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

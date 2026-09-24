@@ -100,84 +100,86 @@ export function PlaygroundGallery() {
       : "Open a folder. Stay as long as you like.";
 
   return (
-    <div className="relative min-h-dvh overflow-x-hidden">
-      <PageRevealWipe />
-      <div className="atmosphere" aria-hidden />
-      <div className="grain-overlay" aria-hidden />
+    <>
+      <div className="relative min-h-dvh overflow-x-hidden">
+        <PageRevealWipe />
+        <div className="atmosphere" aria-hidden />
+        <div className="grain-overlay" aria-hidden />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-[max(4rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 sm:pt-12">
-        <header className="mb-8 flex flex-col gap-6 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <Link
-              href="/"
-              onClick={() => playUiClick()}
-              className="font-[family-name:var(--font-display)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl"
-            >
-              Palmstone
-            </Link>
-            <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
-          </div>
-          <MusicWaveToggle className="sound-wave-btn--gallery" />
-        </header>
-
-        {continueMeta && (
-          <Link
-            href={`/playground/${continueMeta.id}`}
-            onClick={() => onExperienceNavClick()}
-            className="mb-8 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
-            style={{
-              background: "color-mix(in oklab, var(--panel) 70%, transparent)",
-              borderLeft: `3px solid ${continueMeta.accent}`,
-            }}
-          >
+        <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-[max(4rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 sm:pt-12">
+          <header className="mb-8 flex flex-col gap-6 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Continue</p>
-              <p className="mt-1 font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">
-                {continueMeta.name}
-              </p>
+              <Link
+                href="/"
+                onClick={() => playUiClick()}
+                className="font-[family-name:var(--font-display)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl"
+              >
+                Palmstone
+              </Link>
+              <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
             </div>
-            <span className="text-[var(--jade)]">Play →</span>
-          </Link>
-        )}
+            <MusicWaveToggle className="sound-wave-btn--gallery" />
+          </header>
 
-        <div className="folder-grid">
-          {favExperiences.length > 0 && (
-            <button
-              type="button"
-              className="folder-tile"
-              onClick={() => {
-                playUiClick();
-                setOpen({ kind: "favourites" });
+          {continueMeta && (
+            <Link
+              href={`/playground/${continueMeta.id}`}
+              onClick={() => onExperienceNavClick()}
+              className="mb-8 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
+              style={{
+                background: "color-mix(in oklab, var(--panel) 70%, transparent)",
+                borderLeft: `3px solid ${continueMeta.accent}`,
               }}
             >
-              <FolderPreview
-                accents={favExperiences.slice(0, 4).map((e) => e.accent)}
-                tint="color-mix(in oklab, var(--sand) 35%, var(--panel))"
-              />
-              <span className="folder-tile__name">Favourites</span>
-              <span className="folder-tile__count">{favExperiences.length}</span>
-            </button>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Continue</p>
+                <p className="mt-1 font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">
+                  {continueMeta.name}
+                </p>
+              </div>
+              <span className="text-[var(--jade)]">Play →</span>
+            </Link>
           )}
 
-          {folderItems.map(({ folder, items }, i) => (
-            <button
-              type="button"
-              key={folder.id}
-              className="folder-tile"
-              style={{ animationDelay: `${i * 50}ms` }}
-              onClick={() => {
-                playUiClick();
-                setOpen({ kind: "play", folder });
-              }}
-            >
-              <FolderPreview
-                accents={items.slice(0, 4).map((e) => e.accent)}
-                tint={`color-mix(in oklab, ${folder.accent} 28%, var(--panel))`}
-              />
-              <span className="folder-tile__name">{folder.name}</span>
-              <span className="folder-tile__blurb">{folder.blurb}</span>
-            </button>
-          ))}
+          <div className="folder-grid">
+            {favExperiences.length > 0 && (
+              <button
+                type="button"
+                className="folder-tile"
+                onClick={() => {
+                  playUiClick();
+                  setOpen({ kind: "favourites" });
+                }}
+              >
+                <FolderPreview
+                  accents={favExperiences.slice(0, 4).map((e) => e.accent)}
+                  tint="color-mix(in oklab, var(--sand) 35%, var(--panel))"
+                />
+                <span className="folder-tile__name">Favourites</span>
+                <span className="folder-tile__count">{favExperiences.length}</span>
+              </button>
+            )}
+
+            {folderItems.map(({ folder, items }, i) => (
+              <button
+                type="button"
+                key={folder.id}
+                className="folder-tile"
+                style={{ animationDelay: `${i * 50}ms` }}
+                onClick={() => {
+                  playUiClick();
+                  setOpen({ kind: "play", folder });
+                }}
+              >
+                <FolderPreview
+                  accents={items.slice(0, 4).map((e) => e.accent)}
+                  tint={`color-mix(in oklab, ${folder.accent} 28%, var(--panel))`}
+                />
+                <span className="folder-tile__name">{folder.name}</span>
+                <span className="folder-tile__blurb">{folder.blurb}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -202,7 +204,7 @@ export function PlaygroundGallery() {
             style={{ ["--folder-accent" as string]: openAccent }}
           >
             <div className="folder-sheet__head">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Folder</p>
                 <h2 className="mt-1 font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">
                   {openTitle}
@@ -271,7 +273,7 @@ export function PlaygroundGallery() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
