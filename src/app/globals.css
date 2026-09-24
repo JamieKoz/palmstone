@@ -192,7 +192,9 @@ button {
 .folder-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 14px;
+  gap: 16px 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 @media (min-width: 640px) {
@@ -206,7 +208,8 @@ button {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
   border: none;
   padding: 0;
   background: transparent;
@@ -226,18 +229,42 @@ button {
   transform: scale(1.03);
 }
 
+@media (hover: none) {
+  .folder-tile:hover .folder-preview {
+    transform: none;
+  }
+}
+
 .folder-tile__name {
   font-family: var(--font-display), Georgia, serif;
-  font-size: 1.15rem;
+  font-size: clamp(0.95rem, 3.6vw, 1.15rem);
   color: var(--ink);
   letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
 }
 
 .folder-tile__blurb,
 .folder-tile__count {
-  margin-top: -6px;
-  font-size: 0.8rem;
+  margin-top: -4px;
+  font-size: 0.75rem;
+  line-height: 1.35;
   color: var(--mist);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .folder-tile {
+    gap: 10px;
+  }
+
+  .folder-tile__blurb,
+  .folder-tile__count {
+    font-size: 0.8rem;
+    -webkit-line-clamp: 3;
+  }
 }
 
 .folder-preview {
@@ -247,7 +274,8 @@ button {
   gap: 5px;
   aspect-ratio: 1;
   width: 100%;
-  padding: 12px;
+  max-width: 100%;
+  padding: clamp(8px, 2.5vw, 12px);
   border-radius: 22px;
   transition: transform 0.22s cubic-bezier(0.22, 0.8, 0.28, 1);
   box-shadow:
@@ -266,7 +294,11 @@ button {
   z-index: 30;
   display: grid;
   place-items: center;
-  padding: 24px 16px;
+  padding:
+    max(16px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
 }
 
 .folder-sheet__backdrop {
@@ -286,6 +318,7 @@ button {
   z-index: 1;
   width: min(100%, 420px);
   max-height: min(78dvh, 560px);
+  max-height: min(78dvh, calc(100dvh - 2 * max(16px, env(safe-area-inset-top)) - env(safe-area-inset-bottom)));
   display: flex;
   flex-direction: column;
   gap: 12px;

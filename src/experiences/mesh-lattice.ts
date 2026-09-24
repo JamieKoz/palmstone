@@ -525,9 +525,13 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   gl.deleteShader(vs);
   gl.deleteShader(fs);
 
-  // Polar disc: rings × segments (circular silhouette like vizz).
-  const RINGS = 176;
-  const SEGS = 176;
+  // Polar disc — lighter on phones so it stays smooth.
+  const isMobile =
+    typeof window !== "undefined" &&
+    (window.matchMedia("(max-width: 768px)").matches ||
+      (navigator.maxTouchPoints > 1 && window.innerWidth < 900));
+  const RINGS = isMobile ? 64 : 176;
+  const SEGS = isMobile ? 80 : 176;
   const verts = new Float32Array((RINGS + 1) * SEGS * 2);
   let vi = 0;
   for (let ring = 0; ring <= RINGS; ring++) {

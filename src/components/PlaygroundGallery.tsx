@@ -100,12 +100,12 @@ export function PlaygroundGallery() {
       : "Open a folder. Stay as long as you like.";
 
   return (
-    <div className="relative min-h-dvh overflow-hidden">
+    <div className="relative min-h-dvh overflow-x-hidden">
       <PageRevealWipe />
       <div className="atmosphere" aria-hidden />
       <div className="grain-overlay" aria-hidden />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-5 pb-16 pt-8 sm:px-8 sm:pt-12">
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-[max(4rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 sm:pt-12">
         <header className="mb-8 flex flex-col gap-6 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <Link
