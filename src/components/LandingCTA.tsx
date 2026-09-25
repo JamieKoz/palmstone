@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
-import { getPreferredModalities, getRecents } from "@/engine/storage";
+import { getPreferredModalities, getRecents, topAffinityIds } from "@/engine/storage";
 
 /** Soft Phase 1: pick up where you left off (local). */
 export function LandingCTA() {
@@ -24,13 +24,24 @@ export function LandingCTA() {
           setContinueName(meta.name);
         }
       }
-      const prefs = getPreferredModalities(2);
-      if (prefs.length > 0) {
+      const loved = topAffinityIds(2)
+        .map((id) => getMeta(id)?.name)
+        .filter((name): name is string => !!name);
+      if (loved.length > 0) {
         setVibeLine(
-          prefs.length === 1
-            ? `You linger in ${prefs[0].toLowerCase()} feels.`
-            : `You lean toward ${prefs[0].toLowerCase()} and ${prefs[1].toLowerCase()}.`,
+          loved.length === 1
+            ? `You keep coming back to ${loved[0]}.`
+            : `You keep coming back to ${loved[0]} and ${loved[1]}.`,
         );
+      } else {
+        const prefs = getPreferredModalities(2);
+        if (prefs.length > 0) {
+          setVibeLine(
+            prefs.length === 1
+              ? `You linger in ${prefs[0].toLowerCase()} feels.`
+              : `You lean toward ${prefs[0].toLowerCase()} and ${prefs[1].toLowerCase()}.`,
+          );
+        }
       }
     });
     return () => {

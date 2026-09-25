@@ -25,10 +25,23 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   layer.addChild(labels);
 
   const keys: Key[] = [];
-  const rows = [
-    ["Q", "W", "E", "R", "T", "Y"],
-    ["A", "S", "D", "F", "G", "H"],
-    ["Z", "X", "C", "V", "B", "N"],
+  const rows: { label: string; u: number }[][] = [
+    [
+      { label: "tab", u: 1.45 },
+      ..."QWERTYUIOP".split("").map((label) => ({ label, u: 1 })),
+      { label: "bksp", u: 1.7 },
+    ],
+    [
+      { label: "caps", u: 1.7 },
+      ..."ASDFGHJKL".split("").map((label) => ({ label, u: 1 })),
+      { label: "enter", u: 1.85 },
+    ],
+    [
+      { label: "shift", u: 2.2 },
+      ..."ZXCVBNM".split("").map((label) => ({ label, u: 1 })),
+      { label: "shift", u: 2.25 },
+    ],
+    [{ label: "", u: 6.4 }],
   ];
 
   function clearLabels() {
@@ -42,46 +55,46 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   function layout() {
     clearLabels();
     keys.length = 0;
-    const narrow = w < 560;
-    const cols = narrow ? 4 : 6;
-    const rowCount = 3;
-    const gap = Math.min(w, h) * (narrow ? 0.02 : 0.016);
-    const usableW = w * (narrow ? 0.9 : 0.78);
-    // Deeper keycaps — taller than wide-ish square
-    const keyW = (usableW - gap * (cols - 1)) / cols;
-    const keyH = Math.min(keyW * 1.15, h * 0.155);
-    const totalH = rowCount * keyH + (rowCount - 1) * gap;
-    const originX = (w - usableW) / 2;
+    const gap = Math.min(14, Math.max(4, Math.min(w, h) * 0.012));
+    const usableW = w * 0.94;
+    const topUnits = rows[0].reduce((sum, key) => sum + key.u, 0);
+    const unit = (usableW - gap * (rows[0].length - 1)) / topUnits;
+    const keyH = Math.min(unit * 1.05, h * 0.16);
+    const totalH = rows.length * keyH + (rows.length - 1) * gap;
     const originY = (h - totalH) / 2;
     let i = 0;
-    for (let r = 0; r < rowCount; r++) {
+    for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
-      const count = Math.min(cols, row.length);
-      const rowOffset = r === 1 ? keyW * 0.2 : r === 2 ? keyW * 0.4 : 0;
-      for (let c = 0; c < count; c++) {
+      const rowUnits = row.reduce((sum, key) => sum + key.u, 0);
+      const rowW = rowUnits * unit + gap * (row.length - 1);
+      let x = (w - rowW) / 2;
+      for (const spec of row) {
+        const keyW = spec.u * unit;
         const k: Key = {
-          x: originX + rowOffset + c * (keyW + gap),
+          x,
           y: originY + r * (keyH + gap),
           w: keyW,
           h: keyH,
-          label: row[c],
-          // Deeper / lower pitches for a chunkier thock
-          pitch: 0.62 + (i % 7) * 0.045,
+          label: spec.label,
+          pitch: 0.72 + (i % 9) * 0.04,
           press: 0,
         };
-        const t = new Text({
-          text: k.label,
-          style: {
-            fontFamily: "ui-sans-serif, system-ui, sans-serif",
-            fontSize: Math.max(14, Math.min(22, keyW * 0.28)),
-            fill: 0xc5d0d8,
-            fontWeight: "600",
-          },
-        });
-        t.anchor.set(0.5);
-        labels.addChild(t);
-        k.labelText = t;
+        if (spec.label) {
+          const t = new Text({
+            text: spec.label,
+            style: {
+              fontFamily: "ui-sans-serif, system-ui, sans-serif",
+              fontSize: Math.max(10, Math.min(16, Math.min(keyW, keyH) * (spec.label.length > 1 ? 0.22 : 0.36))),
+              fill: 0xc5d0d8,
+              fontWeight: "600",
+            },
+          });
+          t.anchor.set(0.5);
+          labels.addChild(t);
+          k.labelText = t;
+        }
         keys.push(k);
+        x += keyW + gap;
         i++;
       }
     }
@@ -97,35 +110,56 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     return null;
   };
 
-  const active = new Set<number>();
+  const held = new Set<number>();
   let pointerDown = false;
 
-  const strike = (i: number) => {
-    if (active.has(i)) return;
-    active.add(i);
-    const k = keys[i];
-    k.press = 1;
-    audio.thock(0.85 + (i % 3) * 0.06, k.pitch);
-    haptics.tap(14 + (i % 4));
+  const el = ctx.app.canvas;
+
+  const toLocal = (clientX: number, clientY: number) => {
+    const rect = el.getBoundingClientRect();
+    return {
+      x: ((clientX - rect.left) / Math.max(rect.width, 1)) * w,
+      y: ((clientY - rect.top) / Math.max(rect.height, 1)) * h,
+    };
+  };
+
+  const pressKey = (i: number) => {
+    if (held.has(i)) return;
+    held.add(i);
+    keys[i].press = 1;
+    audio.keyStroke("down", 0.9, keys[i].pitch);
+    haptics.tap(12);
+  };
+
+  const releaseKey = (i: number) => {
+    if (!held.has(i)) return;
+    held.delete(i);
+    audio.keyStroke("up", 0.85, keys[i].pitch);
+  };
+
+  const setUnderPointer = (i: number | null) => {
+    for (const heldIndex of [...held]) {
+      if (heldIndex !== i) releaseKey(heldIndex);
+    }
+    if (i != null) pressKey(i);
   };
 
   const onDown = (e: PointerEvent) => {
     void audio.resume();
     pointerDown = true;
-    const i = hit(e.clientX, e.clientY);
-    if (i != null) strike(i);
+    const p = toLocal(e.clientX, e.clientY);
+    setUnderPointer(hit(p.x, p.y));
   };
   const onMove = (e: PointerEvent) => {
     if (!pointerDown) return;
-    const i = hit(e.clientX, e.clientY);
-    if (i != null) strike(i);
+    const p = toLocal(e.clientX, e.clientY);
+    setUnderPointer(hit(p.x, p.y));
   };
   const onUp = () => {
     pointerDown = false;
-    active.clear();
+    for (const i of [...held]) releaseKey(i);
   };
 
-  const el = ctx.app.canvas;
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
@@ -135,7 +169,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
   return {
     update(dt: number) {
-      for (const k of keys) k.press = Math.max(0, k.press - dt * 4.2);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        if (held.has(i)) k.press = 1;
+        else k.press = Math.max(0, k.press - dt * 7);
+      }
 
       g.clear();
       g.rect(0, 0, w, h);
@@ -205,10 +243,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const keyboardThock: ExperienceModule = {
   id: "keyboard-thock",
+  collection: "field",
   name: "Keyboard Thock",
   modality: "Click",
   tagline: "Chunky bottom-out — soft plastic thock under the finger.",
-  hint: "Tap the keys. Drag across for a cascade.",
+  hint: "Tap a key, or drag across the board. Release lifts the key.",
   accent: "#7a8a98",
   mount,
 };

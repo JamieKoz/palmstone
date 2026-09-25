@@ -29,6 +29,34 @@ export function SiteAudio() {
     };
   }, []);
 
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+
+    let pressed: Element | null = null;
+    const press = (e: PointerEvent) => {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      const el = target.closest("button, a[href]");
+      if (!el || el.classList.contains("folder-sheet__backdrop")) return;
+      pressed?.classList.remove("is-pressed");
+      pressed = el;
+      el.classList.add("is-pressed");
+    };
+    const release = () => {
+      pressed?.classList.remove("is-pressed");
+      pressed = null;
+    };
+    document.addEventListener("pointerdown", press);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      document.removeEventListener("pointerdown", press);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, []);
+
   return null;
 }
 

@@ -14,6 +14,7 @@ import {
   getMuted,
   isFavourite,
   pushRecent,
+  recordExperiencePlay,
   recordModalityPlay,
   setHapticsPref,
   setMutedPref,
@@ -98,6 +99,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
       const seconds = (now - last) / 1000;
       last = now;
       recordModalityPlay(modality, seconds);
+      recordExperiencePlay(experienceId, seconds);
     };
     const interval = window.setInterval(flush, 4000);
     const onPageHide = () => flush();

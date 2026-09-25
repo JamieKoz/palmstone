@@ -89,10 +89,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
           best = snap;
         }
       }
-      if (bestD < 0.08) {
+      if (bestD < 0.12) {
         s.target = best;
-        audio.click(0.35, 1 + best);
-        haptics.tap(12);
+        audio.click(0.55, 0.9 + best * 0.35);
+        audio.pulse(0.28);
+        haptics.tap(16);
       }
     }
     drag = null;
@@ -124,31 +125,36 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       g.fill({ color: 0x141816, alpha: 1 });
 
       // Stronger horizontal weave — angles visibly respond to sliders.
-      const threads = 28;
-      const amp = Math.min(w, h) * 0.14;
+      const threads = 36;
+      const amp = Math.min(w, h) * 0.2;
       for (let i = 0; i < threads; i++) {
         const t = i / (threads - 1);
         const x0 = w * 0.12 + t * w * 0.76;
-        g.moveTo(x0, h * 0.1);
+        g.moveTo(x0, h * 0.08);
         for (let s = 0; s < sliders.length; s++) {
           const sl = sliders[s];
-          // Alternating over/under bias + large slider-driven offset
           const weave =
-            Math.sin(t * Math.PI * 3.2 + sl.phase) * (0.35 + sl.value * 0.9) +
-            Math.sin(t * Math.PI * 7 + s * 0.4) * 0.15;
-          const lean = (sl.value - 0.5) * 2; // -1..1
-          const offset = weave * amp + lean * amp * 0.85;
+            Math.sin(t * Math.PI * 3.2 + sl.phase) * (0.45 + sl.value * 1.15) +
+            Math.sin(t * Math.PI * 7 + s * 0.4) * 0.12;
+          const lean = (sl.value - 0.5) * 2;
+          const offset = weave * amp + lean * amp;
           g.lineTo(x0 + offset, sl.trackY);
         }
-        // Exit angle continues the last lean so threads don't snap vertical
         const last = sliders[sliders.length - 1];
-        const exitLean = (last.value - 0.5) * amp * 1.1;
-        g.lineTo(x0 + exitLean, h * 0.92);
+        const exitLean = (last.value - 0.5) * amp * 1.2;
+        g.lineTo(x0 + exitLean, h * 0.94);
         g.stroke({
-          width: 1.6,
-          color: 0x6a8f7a,
-          alpha: 0.28 + (i % 3 === 0 ? 0.22 : 0),
+          width: i % 4 === 0 ? 3.4 : 2.2,
+          color: i % 2 === 0 ? 0xc4b48a : 0x6a8f7a,
+          alpha: 0.55,
         });
+      }
+
+      for (const s of sliders) {
+        const bow = (s.value - 0.5) * 18;
+        g.moveTo(w * 0.08, s.trackY);
+        g.quadraticCurveTo(w * 0.5, s.trackY + bow, w * 0.92, s.trackY);
+        g.stroke({ width: 2.4, color: 0xd7c49a, alpha: 0.55 });
       }
 
       for (let i = 0; i < sliders.length; i++) {
@@ -168,10 +174,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
         const hx = s.trackX0 + s.value * (s.trackX1 - s.trackX0);
         const active = drag === i;
-        g.roundRect(hx - 14, s.trackY - 12, 28, 24, 8);
-        g.fill({ color: active ? 0xd4c4a0 : 0xb8a888, alpha: 1 });
-        g.roundRect(hx - 14, s.trackY - 12, 28, 24, 8);
-        g.stroke({ width: 1.5, color: 0xefe4c8, alpha: 0.5 });
+        g.roundRect(hx - 22, s.trackY - 16, 44, 32, 10);
+        g.fill({ color: 0x2a241c, alpha: 0.45 });
+        g.roundRect(hx - 24, s.trackY - 18, 48, 34, 11);
+        g.fill({ color: active ? 0xf0e2c4 : 0xd4c4a0, alpha: 1 });
+        g.roundRect(hx - 24, s.trackY - 18, 48, 34, 11);
+        g.stroke({ width: 2, color: 0xfff6e4, alpha: 0.55 });
+        g.circle(hx, s.trackY, 5);
+        g.fill({ color: 0x5c4a32, alpha: 0.9 });
       }
     },
     resize(nw, nh) {
@@ -190,10 +200,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const sliderLoom: ExperienceModule = {
   id: "slider-loom",
+  collection: "field",
   name: "Slider Loom",
   modality: "Mechanical",
-  tagline: "Multi-slider weave — snap points and soft resistance.",
-  hint: "Slide each bar. Watch the weave angles shift.",
+  tagline: "Throw the shuttles — the warp leans and the weft seats with a snap.",
+  hint: "Drag a shuttle or its track. It snaps into the weave.",
   accent: "#8fa894",
   mount,
 };

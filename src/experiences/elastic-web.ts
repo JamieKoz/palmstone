@@ -205,6 +205,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const elasticWeb: ExperienceModule = {
   id: "elastic-web",
+  collection: "studio",
   name: "Elastic Web",
   modality: "Elastic",
   tagline: "Pull nodes — spring-back and harmonic wobble.",

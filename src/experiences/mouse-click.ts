@@ -128,6 +128,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const mouseClick: ExperienceModule = {
   id: "mouse-click",
+  collection: "field",
   name: "Mouse Click",
   modality: "Click",
   tagline: "Left, right, wheel — desktop click comfort.",

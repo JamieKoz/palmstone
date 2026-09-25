@@ -1539,6 +1539,7 @@ function hashCode(s: string) {
 export const silkFluid: WebGLExperienceModule = {
   kind: "webgl",
   id: "silk-fluid",
+  collection: "studio",
   name: "Silk Fluid",
   modality: "Fluid",
   tagline: "Drag colorful dye through a living fluid field.",

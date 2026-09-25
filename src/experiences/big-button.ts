@@ -118,6 +118,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const bigButton: ExperienceModule = {
   id: "big-button",
+  collection: "field",
   name: "Big Button",
   modality: "Press",
   tagline: "One giant round press — deep thunk, soft rebound.",

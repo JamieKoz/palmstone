@@ -425,6 +425,7 @@ async function mount(ctx: ExperienceContext): Promise<ExperienceHandle> {
 
 export const lampToggle: ExperienceModule = {
   id: "lamp-toggle",
+  collection: "field",
   name: "Lamp Toggle",
   modality: "Toggle",
   tagline: "Pull the yellow ball — Verlet cord snaps the light.",

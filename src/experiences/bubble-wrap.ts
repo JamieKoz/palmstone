@@ -161,6 +161,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const bubbleWrap: ExperienceModule = {
   id: "bubble-wrap",
+  collection: "field",
   name: "Bubble Wrap",
   modality: "Pop",
   tagline: "Pop every blister — soft membrane snap.",

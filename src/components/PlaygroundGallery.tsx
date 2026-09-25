@@ -9,6 +9,7 @@ import {
   experiencesInFolder,
   getMeta,
   PLAY_FOLDERS,
+  studioExperiences,
   type PlayFolder,
 } from "@/engine/catalog";
 import type { ExperienceMeta } from "@/engine/types";
@@ -16,7 +17,9 @@ import {
   getFavourites,
   getPreferredModalities,
   getRecents,
+  sortByAffinity,
   toggleFavourite,
+  topAffinityIds,
 } from "@/engine/storage";
 
 type OpenFolder =
@@ -30,6 +33,7 @@ export function PlaygroundGallery() {
   const [prefs, setPrefs] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState<OpenFolder>(null);
+  const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,14 +49,27 @@ export function PlaygroundGallery() {
     };
   }, []);
 
+  const closeFolder = () => {
+    if (!open || closing) return;
+    playUiClick();
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      setOpen(null);
+      return;
+    }
+    setClosing(true);
+  };
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(null);
+      if (e.key === "Escape") closeFolder();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, closing]);
 
   const continueMeta = useMemo(() => {
     if (!ready) return undefined;
@@ -65,18 +82,27 @@ export function PlaygroundGallery() {
     [favs],
   );
 
+  const studio = useMemo(() => studioExperiences(), []);
+
+  const forYou = useMemo(() => {
+    if (!ready) return [];
+    return topAffinityIds(4)
+      .map((id) => getMeta(id))
+      .filter((e): e is ExperienceMeta => !!e);
+  }, [ready, favs, recents]);
+
   const folderItems = useMemo(() => {
     return PLAY_FOLDERS.map((folder) => ({
       folder,
-      items: experiencesInFolder(folder),
+      items: ready ? sortByAffinity(experiencesInFolder(folder)) : experiencesInFolder(folder),
     })).filter((f) => f.items.length > 0);
-  }, []);
+  }, [ready, favs, recents]);
 
   const openItems: ExperienceMeta[] =
     open?.kind === "favourites"
       ? favExperiences
       : open?.kind === "play"
-        ? experiencesInFolder(open.folder)
+        ? sortByAffinity(experiencesInFolder(open.folder))
         : [];
 
   const openTitle =
@@ -93,11 +119,16 @@ export function PlaygroundGallery() {
         ? open.folder.accent
         : "var(--jade)";
 
+  const loved = forYou.map((e) => e.name);
   const subtitle = !ready
     ? "Pick a feel. Stay as long as you like."
-    : prefs.length > 0
-      ? `You lean ${prefs[0].toLowerCase()} — open a folder to play.`
-      : "Open a folder. Stay as long as you like.";
+    : loved.length > 0
+      ? loved.length === 1
+        ? `You keep coming back to ${loved[0]}.`
+        : `You keep coming back to ${loved[0]} and ${loved[1]}.`
+      : prefs.length > 0
+        ? `You lean ${prefs[0].toLowerCase()} — open a folder to play.`
+        : "Open a folder. Stay as long as you like.";
 
   return (
     <>
@@ -112,8 +143,9 @@ export function PlaygroundGallery() {
               <Link
                 href="/"
                 onClick={() => playUiClick()}
-                className="font-[family-name:var(--font-display)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl"
+                className="inline-flex items-center gap-2.5 font-[family-name:var(--font-display)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl"
               >
+                <span className="polished-orb header-mark" aria-hidden />
                 Palmstone
               </Link>
               <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
@@ -140,6 +172,50 @@ export function PlaygroundGallery() {
               <span className="text-[var(--jade)]">Play →</span>
             </Link>
           )}
+
+          {forYou.length > 0 && (
+            <div className="for-you">
+              <span className="for-you__label self-center pl-1">For you</span>
+              {forYou.map((exp) => (
+                <Link
+                  key={exp.id}
+                  href={`/playground/${exp.id}`}
+                  onClick={() => onExperienceNavClick()}
+                  className="for-you__chip"
+                  style={{ ["--chip" as string]: exp.accent }}
+                >
+                  {exp.name}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <section className="studio-block">
+            <h2 className="section-kicker">Studio</h2>
+            <div className="studio-grid">
+              {studio.map((exp, i) => (
+                <Link
+                  key={exp.id}
+                  href={`/playground/${exp.id}`}
+                  onClick={() => onExperienceNavClick()}
+                  className="studio-tile"
+                  style={{
+                    ["--tile-accent" as string]: exp.accent,
+                    animationDelay: `${i * 40}ms`,
+                  }}
+                >
+                  <span className="studio-tile__bar" aria-hidden />
+                  <span className="studio-tile__name">{exp.name}</span>
+                  <span className="studio-tile__meta">
+                    <span className="studio-tile__tag">{exp.tagline}</span>
+                    <span className="signature-mark">Signature</span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <h2 className="section-kicker">Field</h2>
 
           <div className="folder-grid">
             {favExperiences.length > 0 && (
@@ -185,7 +261,7 @@ export function PlaygroundGallery() {
 
       {open && (
         <div
-          className="folder-sheet"
+          className={closing ? "folder-sheet folder-sheet--closing" : "folder-sheet"}
           role="dialog"
           aria-modal="true"
           aria-label={openTitle}
@@ -194,14 +270,17 @@ export function PlaygroundGallery() {
             type="button"
             className="folder-sheet__backdrop"
             aria-label="Close folder"
-            onClick={() => {
-              playUiClick();
-              setOpen(null);
-            }}
+            onClick={closeFolder}
           />
           <div
             className="folder-sheet__panel"
             style={{ ["--folder-accent" as string]: openAccent }}
+            onAnimationEnd={(e) => {
+              if (!closing || e.target !== e.currentTarget) return;
+              if (e.animationName !== "folder-shrink") return;
+              setClosing(false);
+              setOpen(null);
+            }}
           >
             <div className="folder-sheet__head">
               <div className="min-w-0 flex-1">
@@ -213,10 +292,7 @@ export function PlaygroundGallery() {
               <button
                 type="button"
                 className="folder-sheet__close"
-                onClick={() => {
-                  playUiClick();
-                  setOpen(null);
-                }}
+                onClick={closeFolder}
               >
                 Close
               </button>
@@ -245,10 +321,14 @@ export function PlaygroundGallery() {
                           {exp.tagline}
                         </span>
                       </span>
-                      {exp.badge && (
-                        <span className="hidden rounded-full bg-[color-mix(in_oklab,var(--jade)_25%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--jade)] sm:inline">
-                          {exp.badge}
-                        </span>
+                      {exp.collection === "studio" ? (
+                        <span className="signature-mark hidden sm:inline">Signature</span>
+                      ) : (
+                        exp.badge && (
+                          <span className="hidden rounded-full bg-[color-mix(in_oklab,var(--jade)_25%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--jade)] sm:inline">
+                            {exp.badge}
+                          </span>
+                        )
                       )}
                     </Link>
                     <button

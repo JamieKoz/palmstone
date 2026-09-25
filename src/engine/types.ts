@@ -41,6 +41,8 @@ export interface AudioBus {
   bongo(freq: number, intensity?: number): void;
   /** Chunky keyboard bottom-out. */
   thock(intensity?: number, pitch?: number): void;
+  /** Recorded keyboard key down or release. */
+  keyStroke(phase: "down" | "up", intensity?: number, pitch?: number): void;
   /** Satisfying bubble-wrap membrane pop. */
   pop(intensity?: number, pitch?: number): void;
   /** Retractable pen: press-in vs spring-back click. */
@@ -115,6 +117,8 @@ export interface ExperienceHandle {
   destroy(): void;
 }
 
+export type ExperienceCollection = "studio" | "field";
+
 export interface ExperienceMeta {
   id: ExperienceId;
   name: string;
@@ -122,6 +126,8 @@ export interface ExperienceMeta {
   tagline: string;
   hint: string;
   accent: string;
+  /** Studio is the elevated set; field stays in the everyday folders. */
+  collection: ExperienceCollection;
   /** Optional badge in gallery — e.g. WebGL */
   badge?: string;
 }

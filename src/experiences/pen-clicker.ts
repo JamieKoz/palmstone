@@ -176,6 +176,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const penClicker: ExperienceModule = {
   id: "pen-clicker",
+  collection: "field",
   name: "Pen Clicker",
   modality: "Click",
   tagline: "Retractable click — tip out, tip in, again.",

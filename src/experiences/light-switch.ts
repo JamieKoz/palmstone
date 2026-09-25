@@ -148,6 +148,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const lightSwitch: ExperienceModule = {
   id: "light-switch",
+  collection: "field",
   name: "Light Switch",
   modality: "Toggle",
   tagline: "Flip the paddle — room light answers the clack.",

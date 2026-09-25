@@ -166,6 +166,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const zipper: ExperienceModule = {
   id: "zipper",
+  collection: "field",
   name: "Zipper",
   modality: "Slide",
   tagline: "Pull the slider — teeth chatter open and shut.",

@@ -8,12 +8,7 @@ export default function HomePage() {
 
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
         <div
-          className="hero-mark h-[min(70vw,420px)] w-[min(70vw,420px)] rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle at 35% 30%, #c4b49a 0%, #7a6e5c 28%, #3a4038 58%, transparent 72%)",
-            filter: "blur(2px)",
-          }}
+          className="hero-mark polished-orb h-[min(70vw,420px)] w-[min(70vw,420px)]"
         />
       </div>
 

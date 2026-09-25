@@ -128,6 +128,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const pulsePads: ExperienceModule = {
   id: "pulse-pads",
+  collection: "field",
   name: "Pulse Pads",
   modality: "Rhythm",
   tagline: "Tap pads — each hits a distinct bongo tone.",

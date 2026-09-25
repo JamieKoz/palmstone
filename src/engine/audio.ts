@@ -58,6 +58,7 @@ export function getSharedAudio(): SharedAudio {
   let lastUi = 0;
   let lastBongo = 0;
   let lastThock = 0;
+  let lastKeyUp = 0;
   let lastPop = 0;
   let lastZip = 0;
   let lastElastic = 0;
@@ -86,6 +87,8 @@ export function getSharedAudio(): SharedAudio {
   type SampleId =
     | "bubblePop"
     | "keyboard"
+    | "keyDown"
+    | "keyUp"
     | "penDown"
     | "penUp"
     | "lightSwitch"
@@ -105,6 +108,8 @@ export function getSharedAudio(): SharedAudio {
   const SAMPLE_FILES: Record<SampleId, string> = {
     bubblePop: "bubble-wrap-pop.mp3",
     keyboard: "keyboard-click.mp3",
+    keyDown: "keyboard-down-press.wav",
+    keyUp: "keyboard-release.wav",
     penDown: "pen-down-click.wav",
     penUp: "pen-release.wav",
     lightSwitch: "light-switch.mp3",
@@ -700,6 +705,29 @@ export function getSharedAudio(): SharedAudio {
     g.connect(m);
     osc.start(t);
     osc.stop(t + 0.16);
+  }
+
+  function keyStroke(phase: "down" | "up", intensity = 0.85, pitch = 1) {
+    if (muted) return;
+    const t = now();
+    if (phase === "down") {
+      if (t - lastThock < 0.016) return;
+      lastThock = t;
+    } else {
+      if (t - lastKeyUp < 0.016) return;
+      lastKeyUp = t;
+    }
+    void ensureSamples();
+    const id = phase === "down" ? "keyDown" : "keyUp";
+    if (
+      playSample(id, {
+        gain: (phase === "down" ? 1.05 : 0.92) * intensity,
+        rate: 0.97 + pitch * 0.05,
+      })
+    ) {
+      return;
+    }
+    if (phase === "down") thock(intensity, pitch);
   }
 
   function pop(intensity = 0.7, pitch = 1) {
@@ -1385,6 +1413,7 @@ export function getSharedAudio(): SharedAudio {
     },
     bongo,
     thock,
+    keyStroke,
     pop,
     penClick,
     switchClick,

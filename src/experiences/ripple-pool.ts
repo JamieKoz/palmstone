@@ -442,6 +442,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
 export const ripplePool: WebGLExperienceModule = {
   kind: "webgl",
   id: "ripple-pool",
+  collection: "studio",
   name: "Ripple Pool",
   modality: "Fluid",
   tagline: "Drag the surface — real water refraction and wake.",

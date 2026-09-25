@@ -146,6 +146,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const fidgetSpinner: ExperienceModule = {
   id: "fidget-spinner",
+  collection: "field",
   name: "Fidget Spinner",
   modality: "Fidget",
   tagline: "Flick the arms — bearings hum, then coast to still.",

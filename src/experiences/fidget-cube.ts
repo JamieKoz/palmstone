@@ -435,6 +435,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const fidgetCube: ExperienceModule = {
   id: "fidget-cube",
+  collection: "field",
   name: "Fidget Cube",
   modality: "Fidget",
   tagline: "Play the face — arrows flip to click, switch, dial, stick, gear, soft.",

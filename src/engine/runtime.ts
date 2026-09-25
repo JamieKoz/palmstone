@@ -2,13 +2,71 @@ import { Application, Container } from "pixi.js";
 import { createAudioBus, getSharedAudio } from "./audio";
 import { createHapticsBus } from "./haptics";
 import type { ExperienceHandle, ExperienceModule } from "./types";
-import { getHapticsPref, getMuted } from "./storage";
+import { getHapticsPref, getMuted, recordPointerBurst } from "./storage";
 
 export type EngineController = {
   setMuted(muted: boolean): void;
   setHaptics(enabled: boolean): void;
   destroy(): void;
 };
+
+function attachPointerProbe(target: HTMLElement, experienceId: string) {
+  let pointerId: number | null = null;
+  let lastX = 0;
+  let lastY = 0;
+  let downAt = 0;
+  const pending = { downs: 0, holdMs: 0, dragPx: 0 };
+
+  const flush = () => {
+    if (pending.downs === 0 && pending.holdMs === 0 && pending.dragPx === 0) return;
+    recordPointerBurst(experienceId, {
+      downs: pending.downs,
+      holdMs: pending.holdMs,
+      dragPx: pending.dragPx,
+    });
+    pending.downs = 0;
+    pending.holdMs = 0;
+    pending.dragPx = 0;
+  };
+
+  const onDown = (e: PointerEvent) => {
+    if (pointerId != null) return;
+    pointerId = e.pointerId;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    downAt = performance.now();
+    pending.downs += 1;
+  };
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerId !== pointerId) return;
+    pending.dragPx += Math.hypot(e.clientX - lastX, e.clientY - lastY);
+    lastX = e.clientX;
+    lastY = e.clientY;
+  };
+  const end = (e: PointerEvent) => {
+    if (e.pointerId !== pointerId) return;
+    pending.holdMs += Math.max(0, performance.now() - downAt);
+    pointerId = null;
+    flush();
+  };
+
+  target.addEventListener("pointerdown", onDown);
+  target.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", end);
+
+  return () => {
+    if (pointerId != null) {
+      pending.holdMs += Math.max(0, performance.now() - downAt);
+      pointerId = null;
+      flush();
+    }
+    target.removeEventListener("pointerdown", onDown);
+    target.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end);
+  };
+}
 
 function measureHost(host: HTMLElement) {
   const rect = host.getBoundingClientRect();
@@ -57,6 +115,7 @@ async function startPixi(
   };
 
   const handle: ExperienceHandle = await module.mount(ctx);
+  const detachProbe = attachPointerProbe(canvas, module.id);
 
   let last = performance.now();
   const ticker = () => {
@@ -88,6 +147,7 @@ async function startPixi(
       haptics.setEnabled(enabled);
     },
     destroy() {
+      detachProbe();
       window.removeEventListener("resize", onResize);
       host.removeEventListener("pointerdown", unlock);
       app.ticker.remove(ticker);
@@ -138,6 +198,7 @@ async function startWebGL(
   };
 
   const handle: ExperienceHandle = await module.mount(ctx);
+  const detachProbe = attachPointerProbe(canvas, module.id);
 
   let last = performance.now();
   let raf = 0;
@@ -175,6 +236,7 @@ async function startWebGL(
       haptics.setEnabled(enabled);
     },
     destroy() {
+      detachProbe();
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       host.removeEventListener("pointerdown", unlock);

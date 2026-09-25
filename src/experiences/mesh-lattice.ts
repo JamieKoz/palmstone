@@ -67,6 +67,10 @@ void main() {
   float x = cos(ang) * rad * discR;
   float z = sin(ang) * rad * discR;
 
+  // Ring 0 is many vertices on one point. Angle-based lift must be 0 there
+  // or the wires from that point fan into a spike.
+  float centerW = smoothstep(0.0, 0.012, rad);
+
   // Continuous angle proxies — NEVER sample bands with raw aUv.y (seam tear).
   float angU = 0.5 + 0.5 * sin(ang);
   float angV = 0.5 + 0.5 * cos(ang);
@@ -76,7 +80,10 @@ void main() {
   float spectrum = mix(tangential, radialAudio, radialMix) * globalSensitivity;
   spectrum = clamp(spectrum, 0.0, 1.0);
   float inward = softBand(rad * 0.72);
-  float cross = softBand(fract(rad * 0.55 + angV * 0.45));
+  // Do not fract() this. At the seam cos(ang)=1 the sum is exactly 1,
+  // fract becomes 0, and a single rim vertex samples the wrong band.
+  float crossArg = clamp(rad * 0.55 + angV * 0.45 * centerW, 0.0, 0.999);
+  float cross = softBand(crossArg);
   float rimEnergy = max(spectrum, mix(inward, spectrum, 0.4));
   rimEnergy = max(rimEnergy, cross * 0.75);
   rimEnergy = max(rimEnergy, uBass * 0.45);
@@ -94,7 +101,7 @@ void main() {
   // Extra music spikes from local spectrum differences.
   float jag =
     sin(rad * 30.0 + ang * 9.0) * cos(ang * 8.0 - rad * 20.0);
-  jag *= jaggedness * (0.4 + rimEnergy * 1.1);
+  jag *= jaggedness * (0.4 + rimEnergy * 1.1) * centerW;
   float peak = max(0.0, cross - radialAudio * 0.65);
   jag += peak * 0.4;
 
@@ -559,12 +566,11 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     }
   }
 
-  // Wireframe: circumferential + radial + diagonal (triangulated).
-  const lineCount =
-    (RINGS + 1) * SEGS * 2 + RINGS * SEGS * 2 + RINGS * SEGS * 2;
+  // Wireframe: circumferential (skip the collapsed center ring) + radial + diagonal.
+  const lineCount = RINGS * SEGS * 2 + RINGS * SEGS * 2 + RINGS * SEGS * 2;
   const lineIndices = new Uint32Array(lineCount);
   let li = 0;
-  for (let ring = 0; ring <= RINGS; ring++) {
+  for (let ring = 1; ring <= RINGS; ring++) {
     for (let seg = 0; seg < SEGS; seg++) {
       const i0 = ring * SEGS + seg;
       const i1 = ring * SEGS + ((seg + 1) % SEGS);
@@ -784,6 +790,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
 
 export const meshLattice: WebGLExperienceModule = {
   id: "mesh-lattice",
+  collection: "studio",
   kind: "webgl",
   name: "Mesh Lattice",
   modality: "WebGL",
