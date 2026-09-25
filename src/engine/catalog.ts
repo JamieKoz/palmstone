@@ -8,7 +8,7 @@ export const CATALOG: ExperienceMeta[] = [
     collection: "studio",
     modality: "WebGL",
     tagline: "Orbit the lattice. Search a song and watch it dance.",
-    hint: "Drag to orbit, scroll to zoom. Search or play Demo to drive the mesh.",
+    hint: "Drag to orbit. Scroll to zoom, or use the Zoom slider on a phone.",
     accent: "#6db8b0",
     badge: "WebGL",
   },

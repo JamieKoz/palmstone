@@ -815,6 +815,26 @@ button {
   align-items: stretch;
 }
 
+.experience-hud--zoom {
+  left: 50%;
+  right: auto;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  translate: -50% 0;
+  z-index: 6;
+  width: min(92vw, 280px);
+  max-width: min(92vw, 280px);
+  justify-content: center;
+}
+
+.experience-hud--zoom .experience-hud__slider {
+  flex: 1;
+}
+
+.experience-hud--zoom .experience-hud__slider input[type="range"] {
+  width: 100%;
+  min-width: 0;
+}
+
 .experience-hud--song-top {
   /* Sit below the Exit / mute chrome */
   top: 56px;

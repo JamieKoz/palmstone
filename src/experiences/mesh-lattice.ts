@@ -340,6 +340,13 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   hud.el.appendChild(panel);
   hud.el.classList.add("experience-hud--song", "experience-hud--song-top");
 
+  const showZoomSlider =
+    typeof window !== "undefined" &&
+    (window.matchMedia("(pointer: coarse)").matches ||
+      window.matchMedia("(max-width: 768px)").matches);
+  const zoomHud = showZoomSlider ? createHud(host) : null;
+  let zoomSlider: { set(v: number): void } | null = null;
+
   const syncPlayingUi = () => {
     songOn = shared.isSongPlaying();
     const track = shared.getPlayingTrack();
@@ -638,6 +645,17 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   let yaw = 0.35;
   let pitch = 0.42; // elevation radians; 0 = horizon, +π/2 = top, −π/2 = underside
   let zoom = 1.05; // 1 = default distance; lower = closer
+  const ZOOM_NEAR = 0.45;
+  const ZOOM_FAR = 2.2;
+  const zoomToSlider = (z: number) => (ZOOM_FAR - z) / (ZOOM_FAR - ZOOM_NEAR);
+  const sliderToZoom = (t: number) => ZOOM_FAR - t * (ZOOM_FAR - ZOOM_NEAR);
+
+  if (zoomHud) {
+    zoomHud.el.classList.add("experience-hud--zoom");
+    zoomSlider = zoomHud.slider("Zoom", 0, 1, zoomToSlider(zoom), (t) => {
+      zoom = sliderToZoom(t);
+    });
+  }
   let time = 0;
   let lastX = 0;
   let lastY = 0;
@@ -667,7 +685,8 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const delta = Math.sign(e.deltaY) * Math.min(1.2, Math.abs(e.deltaY) / 120);
-    zoom = Math.max(0.45, Math.min(2.2, zoom + delta * 0.12));
+    zoom = Math.max(ZOOM_NEAR, Math.min(ZOOM_FAR, zoom + delta * 0.12));
+    zoomSlider?.set(zoomToSlider(zoom));
   };
 
   canvas.addEventListener("pointerdown", onDown);
@@ -778,6 +797,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       else audio.stopBed();
       void shared.unlockAndStartPeace();
       hud.destroy();
+      zoomHud?.destroy();
       gl.deleteBuffer(vbo);
       gl.deleteBuffer(ibo);
       gl.deleteBuffer(lineIbo);
@@ -795,7 +815,7 @@ export const meshLattice: WebGLExperienceModule = {
   name: "Mesh Lattice",
   modality: "WebGL",
   tagline: "Orbit the lattice. Search a song and watch it dance.",
-  hint: "Drag to orbit, scroll to zoom. Search or play Demo to drive the mesh.",
+  hint: "Drag to orbit. Scroll to zoom, or use the Zoom slider on a phone.",
   accent: "#6db8b0",
   badge: "WebGL",
   mount,
