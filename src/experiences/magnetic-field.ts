@@ -3,17 +3,23 @@ import { createHud } from "@/engine/hud";
 import { gravityFromFeel } from "@/engine/storage";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
-type Particle = {
+type Filing = {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  trail: { x: number; y: number }[];
+  ang: number;
+  spin: number;
 };
-type Well = { x: number; y: number; strength: number };
+type Magnet = { x: number; y: number; attract: boolean; r: number };
 
+/**
+ * Magnetic Field — two hand magnets and a bed of iron filings.
+ * Drag a magnet and the filings cling or scatter. Double-tap one to flip its pole.
+ */
 function mount(ctx: ExperienceContext): ExperienceHandle {
   const { root, audio, haptics } = ctx;
+  const canvas = ctx.app.canvas;
   let w = ctx.width;
   let h = ctx.height;
 
@@ -24,221 +30,218 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
   const host = ctx.app.canvas.parentElement ?? document.body;
   const hud = createHud(host);
-  let gravityMul = gravityFromFeel();
-  hud.slider("Gravity", 0.35, 2.4, gravityMul, (v) => {
-    gravityMul = v;
+  let strength = Math.min(2.6, Math.max(0.4, gravityFromFeel()));
+  hud.slider("Pull", 0.4, 2.6, strength, (v) => {
+    strength = v;
   });
 
-  const particles: Particle[] = Array.from({ length: 180 }, () => ({
+  const filings: Filing[] = Array.from({ length: 340 }, () => ({
     x: Math.random() * w,
     y: Math.random() * h,
     vx: 0,
     vy: 0,
-    trail: [],
+    ang: Math.random() * Math.PI,
+    spin: (Math.random() - 0.5) * 0.4,
   }));
 
-  const wells: Well[] = [
-    { x: w * 0.32, y: h * 0.42, strength: 1 },
-    { x: w * 0.68, y: h * 0.58, strength: -0.9 },
+  const magnets: Magnet[] = [
+    { x: w * 0.34, y: h * 0.48, attract: true, r: 34 },
+    { x: w * 0.66, y: h * 0.52, attract: false, r: 30 },
   ];
 
-  let dragWell: number | null = null;
+  let drag: number | null = null;
   let pointerDown = false;
   let px = 0;
   let py = 0;
-  let whooshAcc = 0;
-  let passAcc = 0;
+  let lastTap = 0;
+  let lastTapMagnet = -1;
+  let whoosh = 0;
+  let clingGate = 0;
 
-  const nearestWell = (x: number, y: number) => {
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < wells.length; i++) {
-      const d = Math.hypot(wells[i].x - x, wells[i].y - y);
-      if (d < bestD) {
+  const local = (e: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / Math.max(1, rect.width)) * w,
+      y: ((e.clientY - rect.top) / Math.max(1, rect.height)) * h,
+    };
+  };
+
+  const nearestMagnet = (x: number, y: number) => {
+    let best = -1;
+    let bestD = 48;
+    for (let i = 0; i < magnets.length; i++) {
+      const d = Math.hypot(magnets[i].x - x, magnets[i].y - y);
+      if (d < magnets[i].r + 22 && d < bestD) {
         bestD = d;
         best = i;
       }
     }
-    return bestD < 72 ? best : null;
+    return best;
   };
 
   const onDown = (e: PointerEvent) => {
+    const p = local(e);
+    px = p.x;
+    py = p.y;
     pointerDown = true;
-    px = e.clientX;
-    py = e.clientY;
-    dragWell = nearestWell(px, py);
     void audio.resume();
-    if (dragWell != null) {
+    const hit = nearestMagnet(px, py);
+    const now = performance.now();
+    if (hit >= 0 && hit === lastTapMagnet && now - lastTap < 280) {
+      magnets[hit].attract = !magnets[hit].attract;
+      audio.pulse(0.45);
+      haptics.tap(16);
+      drag = null;
+      lastTap = 0;
+      return;
+    }
+    lastTap = now;
+    lastTapMagnet = hit;
+    drag = hit;
+    if (hit >= 0) {
+      audio.click(0.32, magnets[hit].attract ? 1.15 : 0.72);
       haptics.tap(12);
-      audio.click(0.3, wells[dragWell].strength > 0 ? 1.1 : 0.7);
     }
   };
   const onMove = (e: PointerEvent) => {
-    px = e.clientX;
-    py = e.clientY;
+    const p = local(e);
+    px = p.x;
+    py = p.y;
   };
   const onUp = () => {
     pointerDown = false;
-    dragWell = null;
-  };
-  const onDbl = (e: MouseEvent) => {
-    wells.push({
-      x: e.clientX,
-      y: e.clientY,
-      strength: wells.length % 2 === 0 ? 1 : -0.9,
-    });
-    if (wells.length > 5) wells.shift();
-    audio.pulse(0.35);
-    haptics.tap(16);
+    drag = null;
   };
 
-  const el = ctx.app.canvas;
-  el.addEventListener("pointerdown", onDown);
-  el.addEventListener("pointermove", onMove);
+  canvas.addEventListener("pointerdown", onDown);
+  canvas.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
-  el.addEventListener("dblclick", onDbl);
-  el.style.touchAction = "none";
-
-  let lastTap = 0;
-  const onPointerDownTap = (e: PointerEvent) => {
-    const t = performance.now();
-    if (t - lastTap < 280 && nearestWell(e.clientX, e.clientY) == null) {
-      onDbl(e);
-    }
-    lastTap = t;
-  };
-  el.addEventListener("pointerdown", onPointerDownTap);
-
-  function accel(x: number, y: number) {
-    let ax = 0;
-    let ay = 0;
-    const sources: Well[] = wells.slice();
-    if (pointerDown && dragWell == null) {
-      sources.push({ x: px, y: py, strength: 0.72 });
-    }
-    for (const well of sources) {
-      const dx = well.x - x;
-      const dy = well.y - y;
-      const d2 = dx * dx + dy * dy + 90;
-      const d = Math.sqrt(d2);
-      const f = (well.strength * 26000 * gravityMul) / d2;
-      ax += (dx / d) * f;
-      ay += (dy / d) * f;
-      ax += (-dy / d) * well.strength * 18 * gravityMul;
-      ay += (dx / d) * well.strength * 18 * gravityMul;
-    }
-    return { ax, ay };
-  }
+  canvas.style.touchAction = "none";
 
   return {
     update(dt: number) {
-      if (dragWell != null) {
-        wells[dragWell].x = px;
-        wells[dragWell].y = py;
+      if (drag != null) {
+        const m = magnets[drag];
+        m.x += (px - m.x) * Math.min(1, dt * 14);
+        m.y += (py - m.y) * Math.min(1, dt * 14);
       }
 
+      const finger = pointerDown && drag == null;
       let energy = 0;
-      let passes = 0;
-      for (const p of particles) {
-        const a = accel(p.x, p.y);
-        p.vx = (p.vx + a.ax * dt) * 0.986;
-        p.vy = (p.vy + a.ay * dt) * 0.986;
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        if (p.x < 0) p.x += w;
-        if (p.x > w) p.x -= w;
-        if (p.y < 0) p.y += h;
-        if (p.y > h) p.y -= h;
-        const spd = Math.hypot(p.vx, p.vy);
-        energy += spd;
-        p.trail.push({ x: p.x, y: p.y });
-        if (p.trail.length > 6) p.trail.shift();
-        if (spd > 220) {
-          for (const well of wells) {
-            if (Math.hypot(well.x - p.x, well.y - p.y) < 36) passes += 1;
+      let stuck = 0;
+
+      for (const f of filings) {
+        let fx = 0;
+        let fy = 0;
+        const sources: { x: number; y: number; attract: boolean; reach: number }[] = magnets.map(
+          (m) => ({ x: m.x, y: m.y, attract: m.attract, reach: m.r }),
+        );
+        if (finger) sources.push({ x: px, y: py, attract: true, reach: 26 });
+
+        for (const s of sources) {
+          const dx = s.x - f.x;
+          const dy = s.y - f.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const dir = s.attract ? 1 : -1;
+          const falloff = (18000 * strength) / (d * d + 120);
+          fx += (dx / d) * falloff * dir;
+          fy += (dy / d) * falloff * dir;
+          fx += (-dy / d) * dir * 28 * strength;
+          fy += (dx / d) * dir * 28 * strength;
+          if (s.attract && d < s.reach + 14 + strength * 6) {
+            const grip = (s.reach + 8 + strength * 4 - d) * (70 + strength * 24);
+            fx += (dx / d) * grip;
+            fy += (dy / d) * grip;
+            if (d < s.reach + 8) stuck += 1;
           }
         }
+
+        f.vx = (f.vx + fx * dt) * 0.9;
+        f.vy = (f.vy + fy * dt) * 0.9;
+        f.x += f.vx * dt;
+        f.y += f.vy * dt;
+        const spd = Math.hypot(f.vx, f.vy);
+        energy += spd;
+        const aim = Math.atan2(fy, fx);
+        let da = aim - f.ang;
+        if (da > Math.PI) da -= Math.PI * 2;
+        if (da < -Math.PI) da += Math.PI * 2;
+        f.ang += da * Math.min(1, dt * 10);
+        f.spin = spd * 0.004;
+
+        if (f.x < 4) f.x = w - 8;
+        if (f.x > w - 4) f.x = 8;
+        if (f.y < 4) f.y = h - 8;
+        if (f.y > h - 4) f.y = 8;
       }
 
-      whooshAcc += energy * dt * 0.00008;
-      if (whooshAcc > 2.2 && energy > 25000) {
-        audio.whoosh(Math.min(0.45, energy / 120000));
-        whooshAcc = 0;
+      whoosh += energy * dt * 0.00004;
+      if (whoosh > 1.6 && energy > 18000) {
+        audio.whoosh(Math.min(0.4, energy / 140000));
+        whoosh = 0;
       }
-      passAcc += passes;
-      if (passAcc > 14) {
-        haptics.tap(5);
-        audio.grain(0.16, 1.6);
-        passAcc = 0;
+      clingGate += dt;
+      if (stuck > 36 && clingGate > 0.14) {
+        haptics.tap(4);
+        audio.grain(0.14, 1.5);
+        clingGate = 0;
       }
 
       g.clear();
       g.rect(0, 0, w, h);
       g.fill({ color: 0x10141c, alpha: 1 });
 
-      for (const well of wells) {
-        const attract = well.strength > 0;
-        const color = attract ? 0x7eb6c9 : 0xc97e6a;
-        for (let i = 0; i < 7; i++) {
-          const ang = (i / 7) * Math.PI * 2;
-          const startR = attract ? 150 + gravityMul * 20 : 20;
-          let x = well.x + Math.cos(ang) * startR;
-          let y = well.y + Math.sin(ang) * startR;
-          g.moveTo(x, y);
-          for (let step = 0; step < 18; step++) {
-            const a = accel(x, y);
-            const m = Math.hypot(a.ax, a.ay) || 1;
-            x += (a.ax / m) * 14;
-            y += (a.ay / m) * 14;
-            g.lineTo(x, y);
-          }
-          g.stroke({ width: 1.4, color, alpha: 0.38 });
-        }
-        g.circle(well.x, well.y, 16);
-        g.fill({ color, alpha: 0.22 });
-        g.circle(well.x, well.y, 11);
-        g.fill({ color, alpha: 0.95 });
+      for (const f of filings) {
+        const len = 7 + Math.min(6, Math.hypot(f.vx, f.vy) / 180);
+        const c = Math.cos(f.ang);
+        const s = Math.sin(f.ang);
+        g.moveTo(f.x - c * len, f.y - s * len);
+        g.lineTo(f.x + c * len, f.y + s * len);
+        g.stroke({ width: 2.2, color: 0xd7c3a4, alpha: 0.72 });
       }
 
-      if (pointerDown && dragWell == null) {
-        g.circle(px, py, 18);
-        g.stroke({ width: 2, color: 0xd8e4f0, alpha: 0.55 });
-        g.circle(px, py, 4);
-        g.fill({ color: 0xeef4fb, alpha: 0.9 });
+      if (finger) {
+        g.circle(px, py, 22);
+        g.stroke({ width: 2, color: 0xe7eef6, alpha: 0.7 });
+        g.circle(px, py, 5);
+        g.fill({ color: 0xf4f7fb, alpha: 0.95 });
       }
 
-      for (const p of particles) {
-        if (p.trail.length > 1) {
-          g.moveTo(p.trail[0].x, p.trail[0].y);
-          for (let i = 1; i < p.trail.length; i++) g.lineTo(p.trail[i].x, p.trail[i].y);
-          g.stroke({ width: 1.4, color: 0x9eb4c8, alpha: 0.28 });
+      for (const m of magnets) {
+        const color = m.attract ? 0x7eb6c9 : 0xd08972;
+        g.circle(m.x, m.y, m.r + 8 + strength * 14);
+        g.fill({ color, alpha: 0.12 });
+        g.circle(m.x, m.y, m.r);
+        g.fill({ color: 0x1a222c, alpha: 1 });
+        g.circle(m.x, m.y, m.r);
+        g.stroke({ width: 4, color, alpha: 0.95 });
+        g.circle(m.x, m.y, m.r * 0.42);
+        g.fill({ color, alpha: 0.9 });
+        if (!m.attract) {
+          g.moveTo(m.x - 8, m.y);
+          g.lineTo(m.x + 8, m.y);
+          g.stroke({ width: 2, color: 0x1a222c, alpha: 0.8 });
         }
-        const spd = Math.min(1, Math.hypot(p.vx, p.vy) / 420);
-        g.circle(p.x, p.y, 2.2 + spd * 1.6);
-        g.fill({ color: 0xe4eef8, alpha: 0.5 + spd * 0.45 });
       }
     },
     resize(nw, nh) {
-      const sx = nw / w;
-      const sy = nh / h;
+      const sx = nw / Math.max(1, w);
+      const sy = nh / Math.max(1, h);
       w = nw;
       h = nh;
-      for (const well of wells) {
-        well.x *= sx;
-        well.y *= sy;
+      for (const m of magnets) {
+        m.x *= sx;
+        m.y *= sy;
       }
-      for (const p of particles) {
-        p.x *= sx;
-        p.y *= sy;
-        p.trail = [];
+      for (const f of filings) {
+        f.x *= sx;
+        f.y *= sy;
       }
     },
     destroy() {
-      el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      el.removeEventListener("dblclick", onDbl);
-      el.removeEventListener("pointerdown", onPointerDownTap);
       hud.destroy();
       layer.destroy({ children: true });
     },
@@ -250,8 +253,8 @@ export const magneticField: ExperienceModule = {
   collection: "studio",
   name: "Magnetic Field",
   modality: "Force",
-  tagline: "Pull a swarm — your finger is a magnet, wells bend the field.",
-  hint: "Drag wells, or touch empty space to attract. Double-tap to place another.",
+  tagline: "Drag the magnets — filings cling to one pole and flee the other.",
+  hint: "Drag a disc, or the empty space. Pull sets how hard the field grabs. Double-tap to flip a pole.",
   accent: "#7eb6c9",
   mount,
 };

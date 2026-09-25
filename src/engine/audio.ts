@@ -1014,6 +1014,67 @@ export function getSharedAudio(): SharedAudio {
     elastic(intensity * 0.9, pitch);
   }
 
+  const HARP = [261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25, 783.99, 880, 1046.5];
+
+  /** Short harp string: nail tick, then a decaying fundamental and octave. */
+  function pluck(intensity = 0.7, note = 0) {
+    if (muted) return;
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const t = now();
+
+    const f0 = HARP[Math.max(0, Math.min(HARP.length - 1, note | 0))] ?? 440;
+    const strike = Math.max(0.2, Math.min(1, intensity));
+
+    const noiseLen = Math.floor(c.sampleRate * 0.025);
+    const buffer = c.createBuffer(1, noiseLen, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) {
+      const env = 1 - i / noiseLen;
+      data[i] = (Math.random() * 2 - 1) * env * env;
+    }
+    const noise = c.createBufferSource();
+    noise.buffer = buffer;
+    const nFilt = c.createBiquadFilter();
+    nFilt.type = "bandpass";
+    nFilt.frequency.value = f0 * 3;
+    nFilt.Q.value = 1.2;
+    const nGain = c.createGain();
+    nGain.gain.setValueAtTime(0.16 * strike, t);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    noise.connect(nFilt);
+    nFilt.connect(nGain);
+    nGain.connect(m);
+    noise.start(t);
+    noise.stop(t + 0.04);
+
+    const body = c.createOscillator();
+    body.type = "sine";
+    body.frequency.setValueAtTime(f0 * 1.012, t);
+    body.frequency.exponentialRampToValueAtTime(f0, t + 0.09);
+    const bodyG = c.createGain();
+    bodyG.gain.setValueAtTime(0.0001, t);
+    bodyG.gain.exponentialRampToValueAtTime(0.2 * strike, t + 0.006);
+    bodyG.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+    body.connect(bodyG);
+    bodyG.connect(m);
+    body.start(t);
+    body.stop(t + 0.9);
+
+    const octave = c.createOscillator();
+    octave.type = "sine";
+    octave.frequency.value = f0 * 2;
+    const octG = c.createGain();
+    octG.gain.setValueAtTime(0.0001, t);
+    octG.gain.exponentialRampToValueAtTime(0.07 * strike, t + 0.004);
+    octG.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    octave.connect(octG);
+    octG.connect(m);
+    octave.start(t);
+    octave.stop(t + 0.36);
+  }
+
   function lampToggle(on: boolean, intensity = 0.9) {
     if (muted) return;
     void ensureSamples();
@@ -1421,6 +1482,7 @@ export function getSharedAudio(): SharedAudio {
     stopZip,
     elastic,
     elasticRelease,
+    pluck,
     buttonPress,
     mouseClick,
     lampToggle,

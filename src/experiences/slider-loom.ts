@@ -1,19 +1,20 @@
 import { Container, Graphics } from "pixi.js";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
-type Slider = {
-  trackY: number;
-  trackX0: number;
-  trackX1: number;
-  value: number;
-  target: number;
-  snaps: number[];
-  /** Phase offset so each row weaves differently */
-  phase: number;
+type Cord = {
+  x: number;
+  offset: number;
+  vel: number;
+  side: number;
 };
 
+/**
+ * Slider Loom — one shuttle through a warp of cords.
+ * Drag it across. The cords bow and pluck, then spring home when you let go.
+ */
 function mount(ctx: ExperienceContext): ExperienceHandle {
   const { root, audio, haptics } = ctx;
+  const canvas = ctx.app.canvas;
   let w = ctx.width;
   let h = ctx.height;
 
@@ -22,176 +23,158 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   const g = new Graphics();
   layer.addChild(g);
 
-  const sliders: Slider[] = [];
+  const cords: Cord[] = [];
+  let shuttleX = 0;
+  let shuttleY = 0;
+  let svx = 0;
+  let svy = 0;
+  let held = false;
+  let px = 0;
+  let py = 0;
+  let glide: number | null = null;
 
-  function layout() {
-    const values = sliders.map((s) => s.value);
-    const targets = sliders.map((s) => s.target);
-    sliders.length = 0;
-    const n = 6;
-    const top = h * 0.18;
-    const bottom = h * 0.85;
+  function layout(keepMotion = false) {
+    const n = 11;
+    const left = w * 0.14;
+    const right = w * 0.86;
+    const prev = keepMotion ? cords.map((c) => ({ offset: c.offset, vel: c.vel, side: c.side })) : [];
+    cords.length = 0;
     for (let i = 0; i < n; i++) {
-      const trackY = top + ((bottom - top) * i) / (n - 1);
-      const snaps = [0, 0.25, 0.5, 0.75, 1];
-      const value = values[i] ?? (i * 0.13) % 1;
-      sliders.push({
-        trackY,
-        trackX0: w * 0.12,
-        trackX1: w * 0.88,
-        value,
-        target: targets[i] ?? value,
-        snaps,
-        phase: i * 0.9,
+      cords.push({
+        x: left + ((right - left) * i) / (n - 1),
+        offset: prev[i]?.offset ?? 0,
+        vel: prev[i]?.vel ?? 0,
+        side: prev[i]?.side ?? 0,
       });
+    }
+    if (!keepMotion) {
+      shuttleX = w * 0.5;
+      shuttleY = h * 0.5;
     }
   }
   layout();
 
-  let drag: number | null = null;
-
-  const hit = (x: number, y: number) => {
-    for (let i = 0; i < sliders.length; i++) {
-      const s = sliders[i];
-      const sx = s.trackX0 + s.value * (s.trackX1 - s.trackX0);
-      if (Math.hypot(sx - x, s.trackY - y) < 28) return i;
-    }
-    for (let i = 0; i < sliders.length; i++) {
-      const s = sliders[i];
-      if (Math.abs(y - s.trackY) < 18 && x >= s.trackX0 - 10 && x <= s.trackX1 + 10) return i;
-    }
-    return null;
+  const local = (e: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / Math.max(1, rect.width)) * w,
+      y: ((e.clientY - rect.top) / Math.max(1, rect.height)) * h,
+    };
   };
 
   const onDown = (e: PointerEvent) => {
+    const p = local(e);
+    px = p.x;
+    py = p.y;
+    held = true;
+    glide = null;
     void audio.resume();
-    drag = hit(e.clientX, e.clientY);
-    if (drag != null) {
-      haptics.tap(8);
-      audio.click(0.2, 0.85);
-    }
+    haptics.tap(8);
+    audio.click(0.22, 0.9);
   };
   const onMove = (e: PointerEvent) => {
-    if (drag == null) return;
-    const s = sliders[drag];
-    const t = (e.clientX - s.trackX0) / (s.trackX1 - s.trackX0);
-    s.target = Math.max(0, Math.min(1, t));
+    const p = local(e);
+    px = p.x;
+    py = p.y;
   };
   const onUp = () => {
-    if (drag != null) {
-      const s = sliders[drag];
-      let best = s.snaps[0];
-      let bestD = Infinity;
-      for (const snap of s.snaps) {
-        const d = Math.abs(s.value - snap);
-        if (d < bestD) {
-          bestD = d;
-          best = snap;
-        }
-      }
-      if (bestD < 0.12) {
-        s.target = best;
-        audio.click(0.55, 0.9 + best * 0.35);
-        audio.pulse(0.28);
-        haptics.tap(16);
-      }
-    }
-    drag = null;
+    if (!held) return;
+    held = false;
+    const left = w * 0.16;
+    const right = w * 0.84;
+    const flung = Math.abs(svx) > 240;
+    glide = flung ? (svx > 0 ? right : left) : shuttleX < w * 0.5 ? left : right;
   };
 
-  const el = ctx.app.canvas;
-  el.addEventListener("pointerdown", onDown);
-  el.addEventListener("pointermove", onMove);
+  canvas.addEventListener("pointerdown", onDown);
+  canvas.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
-  el.style.touchAction = "none";
+  canvas.style.touchAction = "none";
+
+  const top = () => h * 0.16;
+  const bot = () => h * 0.84;
 
   return {
     update(dt: number) {
-      for (const s of sliders) {
-        const diff = s.target - s.value;
-        const resistance = 0.12 + Math.abs(diff) * 0.05;
-        s.value += diff * Math.min(1, resistance * dt * 60);
-
-        if (drag != null && sliders[drag] === s) {
-          for (const snap of s.snaps) {
-            const d = snap - s.value;
-            if (Math.abs(d) < 0.06) s.value += d * 0.15;
-          }
+      const damp = Math.pow(0.86, dt * 60);
+      if (held) {
+        svx += (px - shuttleX) * 22 * dt * 60 * 0.15;
+        svy += (py - shuttleY) * 22 * dt * 60 * 0.15;
+      } else if (glide != null) {
+        svx += (glide - shuttleX) * 28 * dt;
+        svy += (h * 0.5 - shuttleY) * 8 * dt;
+        if (Math.abs(shuttleX - glide) < 10 && Math.abs(svx) < 80) {
+          shuttleX = glide;
+          svx = 0;
+          svy = 0;
+          glide = null;
+          audio.pluck(0.4, 2);
+          haptics.tap(14);
         }
+      } else {
+        svx *= damp;
+        svy *= damp;
       }
+      svx *= damp;
+      svy *= damp;
+      const prevX = shuttleX;
+      shuttleX = Math.max(w * 0.1, Math.min(w * 0.9, shuttleX + svx * dt));
+      shuttleY = Math.max(top() + 20, Math.min(bot() - 20, shuttleY + svy * dt));
+
+      const speed = Math.hypot(svx, svy);
+      cords.forEach((c, i) => {
+        const dx = shuttleX - c.x;
+        const near = Math.exp(-(dx * dx) / (72 * 72));
+        const bow = near * Math.max(-1, Math.min(1, (svx || dx) / 280)) * 46;
+        c.vel += (bow - c.offset) * 12 * dt;
+        c.vel *= Math.pow(0.9, dt * 60);
+        c.offset += c.vel * 60 * dt;
+
+        const crossed = (prevX - c.x) * (shuttleX - c.x) < 0;
+        if (crossed) {
+          c.side = shuttleX > prevX ? 1 : -1;
+          const drive = Math.min(1, speed / 700);
+          audio.pluck(0.45 + drive * 0.5, i);
+          haptics.tap(8);
+          c.vel += c.side * 80;
+        }
+      });
 
       g.clear();
       g.rect(0, 0, w, h);
-      g.fill({ color: 0x141816, alpha: 1 });
+      g.fill({ color: 0x121614, alpha: 1 });
 
-      // Stronger horizontal weave — angles visibly respond to sliders.
-      const threads = 36;
-      const amp = Math.min(w, h) * 0.2;
-      for (let i = 0; i < threads; i++) {
-        const t = i / (threads - 1);
-        const x0 = w * 0.12 + t * w * 0.76;
-        g.moveTo(x0, h * 0.08);
-        for (let s = 0; s < sliders.length; s++) {
-          const sl = sliders[s];
-          const weave =
-            Math.sin(t * Math.PI * 3.2 + sl.phase) * (0.45 + sl.value * 1.15) +
-            Math.sin(t * Math.PI * 7 + s * 0.4) * 0.12;
-          const lean = (sl.value - 0.5) * 2;
-          const offset = weave * amp + lean * amp;
-          g.lineTo(x0 + offset, sl.trackY);
-        }
-        const last = sliders[sliders.length - 1];
-        const exitLean = (last.value - 0.5) * amp * 1.2;
-        g.lineTo(x0 + exitLean, h * 0.94);
-        g.stroke({
-          width: i % 4 === 0 ? 3.4 : 2.2,
-          color: i % 2 === 0 ? 0xc4b48a : 0x6a8f7a,
-          alpha: 0.55,
-        });
+      const beamT = top();
+      const beamB = bot();
+      g.roundRect(w * 0.08, beamT - 16, w * 0.84, 18, 8);
+      g.fill({ color: 0x3a3328, alpha: 1 });
+      g.roundRect(w * 0.08, beamB - 2, w * 0.84, 18, 8);
+      g.fill({ color: 0x3a3328, alpha: 1 });
+
+      for (const c of cords) {
+        const midY = (beamT + beamB) * 0.5;
+        g.moveTo(c.x, beamT);
+        g.quadraticCurveTo(c.x + c.offset, midY, c.x, beamB);
+        g.stroke({ width: 3.4, color: 0xd9c7a2, alpha: 0.9 });
       }
 
-      for (const s of sliders) {
-        const bow = (s.value - 0.5) * 18;
-        g.moveTo(w * 0.08, s.trackY);
-        g.quadraticCurveTo(w * 0.5, s.trackY + bow, w * 0.92, s.trackY);
-        g.stroke({ width: 2.4, color: 0xd7c49a, alpha: 0.55 });
-      }
-
-      for (let i = 0; i < sliders.length; i++) {
-        const s = sliders[i];
-        g.moveTo(s.trackX0, s.trackY);
-        g.lineTo(s.trackX1, s.trackY);
-        g.stroke({ width: 4, color: 0x2a332e, alpha: 1 });
-        g.moveTo(s.trackX0, s.trackY);
-        g.lineTo(s.trackX1, s.trackY);
-        g.stroke({ width: 1.5, color: 0x6d7f72, alpha: 0.7 });
-
-        for (const snap of s.snaps) {
-          const sx = s.trackX0 + snap * (s.trackX1 - s.trackX0);
-          g.circle(sx, s.trackY, 3);
-          g.fill({ color: 0x8fa894, alpha: 0.7 });
-        }
-
-        const hx = s.trackX0 + s.value * (s.trackX1 - s.trackX0);
-        const active = drag === i;
-        g.roundRect(hx - 22, s.trackY - 16, 44, 32, 10);
-        g.fill({ color: 0x2a241c, alpha: 0.45 });
-        g.roundRect(hx - 24, s.trackY - 18, 48, 34, 11);
-        g.fill({ color: active ? 0xf0e2c4 : 0xd4c4a0, alpha: 1 });
-        g.roundRect(hx - 24, s.trackY - 18, 48, 34, 11);
-        g.stroke({ width: 2, color: 0xfff6e4, alpha: 0.55 });
-        g.circle(hx, s.trackY, 5);
-        g.fill({ color: 0x5c4a32, alpha: 0.9 });
-      }
+      const sx = shuttleX;
+      const sy = shuttleY;
+      g.roundRect(sx - 34, sy - 16, 68, 32, 14);
+      g.fill({ color: held ? 0xf0e2c4 : 0xcbb992, alpha: 1 });
+      g.roundRect(sx - 34, sy - 16, 68, 32, 14);
+      g.stroke({ width: 2, color: 0x6a5438, alpha: 0.7 });
+      g.circle(sx, sy, 5);
+      g.fill({ color: 0x3a2e22, alpha: 0.85 });
     },
     resize(nw, nh) {
       w = nw;
       h = nh;
-      layout();
+      layout(true);
     },
     destroy() {
-      el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       layer.destroy({ children: true });
     },
@@ -203,8 +186,8 @@ export const sliderLoom: ExperienceModule = {
   collection: "field",
   name: "Slider Loom",
   modality: "Mechanical",
-  tagline: "Throw the shuttles — the warp leans and the weft seats with a snap.",
-  hint: "Drag a shuttle or its track. It snaps into the weave.",
+  tagline: "Drag the shuttle — the warp bows, plucks, and springs home.",
+  hint: "Grab anywhere and pull the shuttle through the cords. Let go and they ring back.",
   accent: "#8fa894",
   mount,
 };

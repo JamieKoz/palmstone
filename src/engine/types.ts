@@ -57,6 +57,8 @@ export interface AudioBus {
   elastic(intensity?: number, pitch?: number): void;
   /** Elastic snap-back when a stretched node is released. */
   elasticRelease(intensity?: number, pitch?: number): void;
+  /** Plucked string. `note` picks a step on a small harp scale. */
+  pluck(intensity?: number, note?: number): void;
   /** Deep arcade / fidget big-button press (down) or release (up). */
   buttonPress(phase?: "down" | "up", intensity?: number): void;
   /** Optical mouse button click. */

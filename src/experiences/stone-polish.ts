@@ -1,3 +1,4 @@
+import { createHud } from "@/engine/hud";
 import type {
   ExperienceHandle,
   WebGLExperienceContext,
@@ -31,6 +32,7 @@ uniform float uSheen;
 uniform float uSweep;
 uniform vec2 uFinger;
 uniform float uFingerOn;
+uniform float uShape;
 out vec4 outColor;
 
 float hash(vec2 p) {
@@ -59,10 +61,36 @@ float fbm(vec2 p) {
   return v;
 }
 
+float shapeField(vec2 q) {
+  if (uShape < 0.5) return length(q);
+  if (uShape < 1.5) return abs(q.x) * 0.92 + abs(q.y) * 1.08;
+  if (uShape < 2.5) return length(q) * 0.86;
+  if (uShape < 3.5) {
+    vec2 p = abs(q);
+    vec2 b = vec2(0.82, 0.58);
+    float rad = 0.2;
+    vec2 d = p - b + rad;
+    float sd = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - rad;
+    return sd + 1.0;
+  }
+  if (uShape < 4.5) {
+    vec2 p = vec2(q.x * 1.15, -q.y * 1.15 - 0.15);
+    float a = p.x * p.x + p.y * p.y - 0.72;
+    float h = a * a * a - p.x * p.x * p.y * p.y * p.y;
+    return 1.0 + h * 1.15;
+  }
+  float ang = atan(-q.y, q.x) + 1.5707963;
+  float period = 6.2831853 / 5.0;
+  float u = mod(ang, period);
+  float t = abs(u - period * 0.5) / (period * 0.5);
+  float bound = mix(1.0, 0.4, t);
+  return length(q) / bound;
+}
+
 void main() {
   vec2 px = vec2(vUv.x * uRes.x, (1.0 - vUv.y) * uRes.y);
   vec2 q = (px - uCenter) / uRadius;
-  float r = length(q);
+  float field = shapeField(q);
   float ang = atan(q.y, q.x);
 
   vec3 bg = vec3(0.045, 0.04, 0.035);
@@ -72,19 +100,20 @@ void main() {
 
   vec3 col = bg;
 
-  float bezel = smoothstep(1.22, 1.12, r) * smoothstep(0.98, 1.06, r);
+  float bezel = smoothstep(1.18, 1.08, field) * smoothstep(0.96, 1.04, field);
   vec3 gold = vec3(0.62, 0.48, 0.24);
   vec3 goldHi = vec3(0.95, 0.82, 0.48);
   float bezelLight = pow(max(0.0, dot(normalize(q + vec2(0.2, -0.35)), vec2(0.0, -1.0))), 2.0);
   col = mix(col, mix(gold * 0.45, goldHi, bezelLight), bezel);
 
-  if (r < 1.02) {
+  if (field < 1.02) {
     vec2 gemUv = q * 0.5 + 0.5;
     float polish = texture(uPolish, gemUv).r;
     polish = smoothstep(0.02, 0.98, polish);
 
+    float facetAmt = uShape < 0.5 ? 1.0 : (uShape > 4.5 ? 1.05 : (uShape < 1.5 ? 1.1 : (uShape < 2.5 ? 0.22 : 0.5)));
     float sector = floor((ang + 3.14159265) / (3.14159265 / 4.0));
-    float facetWave = cos(sector + ang * 8.0);
+    float facetWave = cos(sector + ang * 8.0) * facetAmt;
     vec3 n = normalize(vec3(q * (0.55 + facetWave * 0.12), 0.42 + 0.25 * facetWave));
 
     float gritN = fbm(q * 18.0 + sector * 1.7);
@@ -118,12 +147,12 @@ void main() {
     float glint = smoothstep(0.92, 1.0, sin(tw * 30.0 + uTime * (4.0 + polish * 6.0)));
     col += vec3(1.0, 0.95, 0.8) * glint * polish * polish * 0.9;
 
-    float edge = smoothstep(1.0, 0.86, r);
+    float edge = smoothstep(1.0, 0.86, field);
     col *= edge;
-    col += goldHi * (1.0 - edge) * smoothstep(1.05, 0.92, r) * 0.35;
+    col += goldHi * (1.0 - edge) * smoothstep(1.05, 0.92, field) * 0.35;
 
-    float shadow = smoothstep(1.15, 0.98, r) * 0.35;
-    col = mix(bg, col, smoothstep(1.01, 0.9, r));
+    float shadow = smoothstep(1.15, 0.98, field) * 0.35;
+    col = mix(bg, col, smoothstep(1.01, 0.9, field));
     col -= shadow * 0.15;
   }
 
@@ -242,6 +271,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     sweep: gl.getUniformLocation(prog, "uSweep"),
     finger: gl.getUniformLocation(prog, "uFinger"),
     fingerOn: gl.getUniformLocation(prog, "uFingerOn"),
+    shape: gl.getUniformLocation(prog, "uShape"),
   };
   const sparkLoc = {
     res: gl.getUniformLocation(sparkProg, "uRes"),
@@ -271,6 +301,26 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   let time = 0;
   let rubAcc = 0;
   let chimeAcc = 0;
+  let shape = 0;
+
+  const SHAPES = ["Gem", "Diamond", "Coin", "Plaque", "Heart", "Star"] as const;
+  const hud = createHud(ctx.host);
+  hud.el.classList.add("experience-hud--shapes");
+  const shapeButtons = SHAPES.map((label, id) =>
+    hud.button(label, () => {
+      if (shape === id) return;
+      shape = id;
+      for (let i = 0; i < polish.length; i++) polish[i] = Math.random() * 0.02;
+      swept = false;
+      sweep = 0;
+      for (const btn of shapeButtons) btn.classList.remove("is-active");
+      shapeButtons[id]?.classList.add("is-active");
+      void audio.resume();
+      audio.click(0.28, 1.05);
+      haptics.tap(8);
+    }),
+  );
+  shapeButtons[0]?.classList.add("is-active");
 
   const toLocal = (clientX: number, clientY: number) => {
     const rect = canvas.getBoundingClientRect();
@@ -321,7 +371,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       const speed = Math.hypot(px - lpx, py - lpy) / Math.max(dt, 0.001);
       const nx = (px - cx) / rx;
       const ny = (py - cy) / ry;
-      const inside = nx * nx + ny * ny <= 1.05;
+      const inside = shapeField(nx, ny, shape) <= 1.05;
 
       if (pointerDown && inside) {
         sheen += ((px - lpx) / Math.max(w, 1)) * 2.2;
@@ -337,15 +387,15 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
           for (let col = minC; col <= maxC; col++) {
             const u = (col + 0.5) / TW;
             const v = (row + 0.5) / TH;
-            const gx = (u * 2 - 1);
-            const gy = (v * 2 - 1);
-            if (gx * gx + gy * gy > 1) continue;
+            const gx = u * 2 - 1;
+            const gy = v * 2 - 1;
+            if (shapeField(gx, gy, shape) > 1) continue;
             const d = Math.hypot(gx - nx, gy - ny);
             const fall = 1 - d / brush;
             if (fall <= 0) continue;
             const i = row * TW + col;
             const before = polish[i];
-            const add = 0.235 * dt * fall * fall * speedMul;
+            const add = 0.414 * dt * fall * fall * speedMul;
             polish[i] = Math.min(1, before + add);
             gained += polish[i] - before;
             if (before < 0.72 && polish[i] >= 0.72) {
@@ -379,8 +429,17 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       }
 
       let sum = 0;
-      for (let i = 0; i < polish.length; i += 4) sum += polish[i];
-      const avg = sum / (polish.length / 4);
+      let covered = 0;
+      for (let row = 0; row < TH; row += 4) {
+        for (let col = 0; col < TW; col += 4) {
+          const gx = ((col + 0.5) / TW) * 2 - 1;
+          const gy = ((row + 0.5) / TH) * 2 - 1;
+          if (shapeField(gx, gy, shape) > 1) continue;
+          sum += polish[row * TW + col];
+          covered += 1;
+        }
+      }
+      const avg = covered > 0 ? sum / covered : 0;
       if (!swept && avg > 0.86) {
         swept = true;
         sweep = 1;
@@ -425,6 +484,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       gl.uniform1f(loc.sweep, sweep);
       gl.uniform2f(loc.finger, px, py);
       gl.uniform1f(loc.fingerOn, pointerDown && inside ? 1 : 0);
+      gl.uniform1f(loc.shape, shape);
       gl.bindVertexArray(quad);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       gl.bindVertexArray(null);
@@ -457,6 +517,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      hud.destroy();
       gl.deleteTexture(tex);
       gl.deleteBuffer(quadBuf);
       gl.deleteBuffer(sparkBuf);
@@ -466,6 +527,38 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       gl.deleteProgram(sparkProg);
     },
   };
+}
+
+function shapeField(nx: number, ny: number, shape: number) {
+  if (shape === 0) return Math.hypot(nx, ny);
+  if (shape === 1) return Math.abs(nx) * 0.92 + Math.abs(ny) * 1.08;
+  if (shape === 2) return Math.hypot(nx, ny) * 0.86;
+  if (shape === 3) {
+    const ax = Math.abs(nx);
+    const ay = Math.abs(ny);
+    const bx = 0.82;
+    const by = 0.58;
+    const rad = 0.2;
+    const dx = ax - bx + rad;
+    const dy = ay - by + rad;
+    const ox = Math.max(dx, 0);
+    const oy = Math.max(dy, 0);
+    const sd = Math.hypot(ox, oy) + Math.min(Math.max(dx, dy), 0) - rad;
+    return sd + 1;
+  }
+  if (shape === 4) {
+    const x = nx * 1.15;
+    const y = -ny * 1.15 - 0.15;
+    const a = x * x + y * y - 0.72;
+    const h = a * a * a - x * x * y * y * y;
+    return 1 + h * 1.15;
+  }
+  const ang = Math.atan2(-ny, nx) + Math.PI / 2;
+  const period = (Math.PI * 2) / 5;
+  const u = ((ang % period) + period) % period;
+  const t = Math.abs(u - period * 0.5) / (period * 0.5);
+  const bound = 1 + (0.4 - 1) * t;
+  return Math.hypot(nx, ny) / bound;
 }
 
 function sampleAverage(polish: Float32Array, tw: number, th: number) {
@@ -500,7 +593,7 @@ export const stonePolish: WebGLExperienceModule = {
   name: "Stone Polish",
   modality: "Texture",
   tagline: "Rub the badge — grit falls away and the shine sweeps across.",
-  hint: "Keep rubbing. The mirror builds slowly, then the whole badge flashes.",
+  hint: "Pick a shape along the bottom, then rub until the shine sweeps across.",
   accent: "#a89a84",
   badge: "WebGL",
   mount,

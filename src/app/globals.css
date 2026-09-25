@@ -815,6 +815,17 @@ button {
   align-items: stretch;
 }
 
+.experience-hud--shapes {
+  left: 50%;
+  right: auto;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  translate: -50% 0;
+  z-index: 6;
+  width: min(96vw, 540px);
+  max-width: min(96vw, 540px);
+  justify-content: center;
+}
+
 .experience-hud--zoom {
   left: 50%;
   right: auto;
