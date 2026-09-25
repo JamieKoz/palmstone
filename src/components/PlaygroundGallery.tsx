@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
 import { PageRevealWipe } from "@/components/PageRevealWipe";
@@ -49,7 +49,7 @@ export function PlaygroundGallery() {
     };
   }, []);
 
-  const closeFolder = () => {
+  const closeFolder = useCallback(() => {
     if (!open || closing) return;
     playUiClick();
     const reduce =
@@ -60,7 +60,7 @@ export function PlaygroundGallery() {
       return;
     }
     setClosing(true);
-  };
+  }, [open, closing]);
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +69,7 @@ export function PlaygroundGallery() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, closing]);
+  }, [open, closeFolder]);
 
   const continueMeta = useMemo(() => {
     if (!ready) return undefined;
@@ -86,12 +86,17 @@ export function PlaygroundGallery() {
 
   const forYou = useMemo(() => {
     if (!ready) return [];
+    // Favourites and recents are the signal that the stored profile changed.
+    void favs;
+    void recents;
     return topAffinityIds(4)
       .map((id) => getMeta(id))
       .filter((e): e is ExperienceMeta => !!e);
   }, [ready, favs, recents]);
 
   const folderItems = useMemo(() => {
+    void favs;
+    void recents;
     return PLAY_FOLDERS.map((folder) => ({
       folder,
       items: ready ? sortByAffinity(experiencesInFolder(folder)) : experiencesInFolder(folder),
