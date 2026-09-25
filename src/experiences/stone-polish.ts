@@ -375,8 +375,12 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
 
       if (pointerDown && inside) {
         sheen += ((px - lpx) / Math.max(w, 1)) * 2.2;
-        const speedMul = 0.4 + Math.min(1, speed / 420) * 0.9;
-        const brush = 0.2;
+        const fit = Math.min(w, h);
+        const compact = fit < 820;
+        const fullSpeed = compact ? Math.max(130, rx * 1.35) : 420;
+        const speedMul = 0.4 + Math.min(1, speed / fullSpeed) * 0.9;
+        const brush = compact ? 0.3 : 0.2;
+        const rate = compact ? 0.72 : 0.497;
         let touched = 0;
         let gained = 0;
         const minC = Math.max(0, Math.floor(((nx - brush) * 0.5 + 0.5) * TW) - 1);
@@ -395,7 +399,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
             if (fall <= 0) continue;
             const i = row * TW + col;
             const before = polish[i];
-            const add = 0.414 * dt * fall * fall * speedMul;
+            const add = rate * dt * fall * fall * speedMul;
             polish[i] = Math.min(1, before + add);
             gained += polish[i] - before;
             if (before < 0.72 && polish[i] >= 0.72) {
