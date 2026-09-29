@@ -1101,6 +1101,81 @@ button.folder-sheet__row {
   min-width: 0;
 }
 
+.kb-turn {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  pointer-events: none;
+  text-align: center;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.kb-turn[hidden] {
+  display: none;
+}
+
+.kb-turn p {
+  margin: 0;
+  max-width: 16rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.45rem;
+  line-height: 1.25;
+}
+
+.kb-turn__phone {
+  width: 52px;
+  height: 86px;
+  border: 2px solid var(--mist);
+  border-radius: 12px;
+  position: relative;
+  animation: kb-turn-tilt 2.6s ease-in-out infinite;
+}
+
+.kb-turn__phone::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 16px;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--fade);
+  translate: -50% 0;
+}
+
+@keyframes kb-turn-tilt {
+  0%,
+  20% {
+    transform: rotate(0deg);
+  }
+  45%,
+  72% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.experience-stage:has(.kb-turn:not([hidden])) .experience-hint,
+.experience-host:has(.kb-turn:not([hidden])) .experience-hud {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-turn__phone {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
+
 .experience-hud--song-top {
   /* Sit below the Exit / timer row so the search stays clickable. */
   top: 72px;

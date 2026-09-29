@@ -321,9 +321,9 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     }),
   );
   shapeButtons[0]?.classList.add("is-active");
-  let grit = 1;
-  hud.slider("Grit", 0.35, 2.6, grit, (v) => {
-    grit = v;
+  let polishSpeed = 1;
+  hud.slider("Speed", 0.35, 2.6, polishSpeed, (v) => {
+    polishSpeed = v;
   });
 
   const toLocal = (clientX: number, clientY: number) => {
@@ -403,7 +403,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
             if (fall <= 0) continue;
             const i = row * TW + col;
             const before = polish[i];
-            const add = rate * dt * fall * fall * speedMul * grit;
+            const add = rate * dt * fall * fall * speedMul * polishSpeed;
             polish[i] = Math.min(1, before + add);
             gained += polish[i] - before;
             if (before < 0.72 && polish[i] >= 0.72) {

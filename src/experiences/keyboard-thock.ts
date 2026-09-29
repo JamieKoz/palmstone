@@ -53,9 +53,30 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     labels.removeChildren();
   }
 
+  const turn = document.createElement("div");
+  turn.className = "kb-turn";
+  turn.hidden = true;
+  turn.setAttribute("role", "status");
+  turn.innerHTML =
+    '<span class="kb-turn__phone" aria-hidden="true"></span><p>Turn your phone sideways</p>';
+  ctx.host.appendChild(turn);
+
+  const portraitQuery =
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 900px) and (orientation: portrait)")
+      : null;
+
+  function phonePortrait() {
+    return portraitQuery?.matches ?? false;
+  }
+
   function layout() {
     clearLabels();
     keys.length = 0;
+    const turned = phonePortrait();
+    turn.hidden = !turned;
+    if (turned) return;
+
     const gap = Math.min(14, Math.max(4, Math.min(w, h) * 0.012));
     const usableW = w * 0.94;
     const topUnits = rows[0].reduce((sum, key) => sum + key.u, 0);
@@ -101,6 +122,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     }
   }
   layout();
+  const onPortrait = () => layout();
+  portraitQuery?.addEventListener("change", onPortrait);
 
   const hit = (x: number, y: number) => {
     for (let i = 0; i < keys.length; i++) {
@@ -238,6 +261,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     },
     destroy() {
       hud.destroy();
+      turn.remove();
+      portraitQuery?.removeEventListener("change", onPortrait);
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

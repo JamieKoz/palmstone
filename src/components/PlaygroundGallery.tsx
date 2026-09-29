@@ -376,7 +376,7 @@ export function PlaygroundGallery() {
                           {exp.name}
                         </span>
                         <span className="mt-0.5 block truncate text-sm text-[var(--mist)]">
-                          {exp.tagline}
+                          {shortAction(exp.tagline)}
                         </span>
                       </span>
                     </Link>
@@ -438,6 +438,15 @@ function SfxToggle() {
       SFX
     </button>
   );
+}
+
+/** The short action before the dash, which is enough to recognise the toy. */
+function shortAction(tagline: string) {
+  const head = tagline.split("—")[0]?.trim() || tagline;
+  if (head.length < tagline.trim().length) return head.replace(/\.$/, "");
+  const sentence = head.split(".")[0]?.trim() || head;
+  const words = sentence.split(/\s+/);
+  return words.length <= 4 ? sentence : words.slice(0, 3).join(" ");
 }
 
 function folderCoverIds(groups: { items: ExperienceMeta[] }[]): ExperienceId[] {
