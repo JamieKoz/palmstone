@@ -1176,6 +1176,25 @@ button.folder-sheet__row {
   }
 }
 
+.ios-haptic-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
+  display: block;
+}
+
+.ios-haptic-surface input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0.02;
+  border: 0;
+  touch-action: none;
+}
+
 .experience-hud--song-top {
   /* Sit below the Exit / timer row so the search stays clickable. */
   top: 72px;

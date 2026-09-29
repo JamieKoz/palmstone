@@ -1,6 +1,6 @@
 import { Application, Container } from "pixi.js";
 import { createAudioBus, getSharedAudio } from "./audio";
-import { createHapticsBus } from "./haptics";
+import { attachDirectIosSurface, createHapticsBus } from "./haptics";
 import type { ExperienceHandle, ExperienceModule } from "./types";
 import { getHapticsPref, getMuted, recordPointerBurst } from "./storage";
 
@@ -116,6 +116,7 @@ async function startPixi(
 
   const handle: ExperienceHandle = await module.mount(ctx);
   const detachProbe = attachPointerProbe(canvas, module.id);
+  const detachHapticSurface = attachDirectIosSurface(host, canvas);
 
   let last = performance.now();
   const ticker = () => {
@@ -148,6 +149,7 @@ async function startPixi(
     },
     destroy() {
       detachProbe();
+      detachHapticSurface();
       window.removeEventListener("resize", onResize);
       host.removeEventListener("pointerdown", unlock);
       app.ticker.remove(ticker);
@@ -199,6 +201,7 @@ async function startWebGL(
 
   const handle: ExperienceHandle = await module.mount(ctx);
   const detachProbe = attachPointerProbe(canvas, module.id);
+  const detachHapticSurface = attachDirectIosSurface(host, canvas);
 
   let last = performance.now();
   let raf = 0;
@@ -237,6 +240,7 @@ async function startWebGL(
     },
     destroy() {
       detachProbe();
+      detachHapticSurface();
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       host.removeEventListener("pointerdown", unlock);

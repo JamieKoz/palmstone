@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { getSharedAudio } from "@/engine/audio";
-import { getMuted, getMusicMuted } from "@/engine/storage";
+import { fireHaptic } from "@/engine/haptics";
+import { getHapticsPref, getMuted, getMusicMuted } from "@/engine/storage";
 
 /** Unlock AudioContext + start peaceful ambient on first user gesture. */
 export function SiteAudio() {
@@ -27,6 +28,21 @@ export function SiteAudio() {
       window.removeEventListener("keydown", unlock, true);
       window.removeEventListener("touchstart", unlock, true);
     };
+  }, []);
+
+  useEffect(() => {
+    const onUiHaptic = (event: PointerEvent) => {
+      if (!getHapticsPref()) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("canvas, .ios-haptic-surface, .folder-sheet__backdrop")) return;
+      const control = target.closest("button, a[href], input, select, textarea");
+      if (!control) return;
+      if ("disabled" in control && control.disabled) return;
+      fireHaptic(12);
+    };
+    document.addEventListener("pointerdown", onUiHaptic, true);
+    return () => document.removeEventListener("pointerdown", onUiHaptic, true);
   }, []);
 
   useEffect(() => {

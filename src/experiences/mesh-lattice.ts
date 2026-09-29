@@ -664,7 +664,11 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     dragging = true;
     lastX = e.clientX;
     lastY = e.clientY;
-    canvas.setPointerCapture?.(e.pointerId);
+    try {
+      canvas.setPointerCapture?.(e.pointerId);
+    } catch {
+      /* The iPhone haptic layer owns the pointer when it covers the canvas. */
+    }
     void audio.resume();
     haptics.tap(6);
   };
