@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Node = {
@@ -96,6 +97,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     peakStretch = 0;
   };
 
+  let reach = 280;
+  const hud = createHud(ctx.host);
+  hud.slider("Reach", 70, 520, reach, (v) => {
+    reach = v;
+  });
+
   const el = ctx.app.canvas;
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointermove", onMove);
@@ -111,8 +118,16 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
       if (drag != null) {
         const n = nodes[drag];
-        n.x = px;
-        n.y = py;
+        const dx = px - n.ox;
+        const dy = py - n.oy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > reach && dist > 0) {
+          n.x = n.ox + (dx / dist) * reach;
+          n.y = n.oy + (dy / dist) * reach;
+        } else {
+          n.x = px;
+          n.y = py;
+        }
         n.vx = 0;
         n.vy = 0;
         const pull = Math.hypot(n.x - n.ox, n.y - n.oy);
@@ -195,6 +210,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       layout();
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

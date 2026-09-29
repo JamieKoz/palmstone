@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 function mount(ctx: ExperienceContext): ExperienceHandle {
@@ -58,6 +59,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     haptics.pattern([0, 14, 28, 8]);
   };
 
+  let clickRate = 22;
+  const hud = createHud(ctx.host);
+  hud.slider("Click", 8, 40, clickRate, (v) => {
+    clickRate = v;
+  });
+
   const el = ctx.app.canvas;
   el.addEventListener("pointerdown", onDown);
   window.addEventListener("pointerup", onUp);
@@ -66,7 +73,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   return {
     update(dt: number) {
       const target = holding ? 1 : 0;
-      press += (target - press) * Math.min(1, dt * 22);
+      press += (target - press) * Math.min(1, dt * clickRate);
       tipBloom = Math.max(0, tipBloom - dt * 2.2);
       angle += Math.sin(performance.now() * 0.0007) * 0.00015;
 
@@ -167,6 +174,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
       layer.destroy({ children: true });

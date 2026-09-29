@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 function mount(ctx: ExperienceContext): ExperienceHandle {
@@ -16,8 +17,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let scroll = 0;
   let wheelSpin = 0;
 
+  let mouseScale = 1;
+  const hud = createHud(ctx.host);
+  hud.slider("Size", 0.7, 1.45, mouseScale, (v) => {
+    mouseScale = v;
+  });
+
   const geom = () => {
-    const mw = Math.min(w, h) * 0.38;
+    const mw = Math.min(w, h) * 0.38 * mouseScale;
     const mh = mw * 1.55;
     return { cx: w * 0.5, cy: h * 0.5, mw, mh };
   };
@@ -120,6 +127,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       layer.destroy({ children: true });
     },

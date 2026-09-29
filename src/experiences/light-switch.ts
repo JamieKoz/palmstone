@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 function mount(ctx: ExperienceContext): ExperienceHandle {
@@ -20,8 +21,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let startX = 0;
   let startY = 0;
 
+  let plateScale = 1;
+  const hud = createHud(ctx.host);
+  hud.slider("Size", 0.7, 1.4, plateScale, (v) => {
+    plateScale = v;
+  });
+
   const plate = () => {
-    const size = Math.min(w, h) * 0.42;
+    const size = Math.min(w, h) * 0.42 * plateScale;
     return {
       cx: w * 0.5,
       cy: h * 0.48,
@@ -138,6 +145,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

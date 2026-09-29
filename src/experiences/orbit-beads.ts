@@ -33,7 +33,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   hud.slider("Gravity", 0.35, 2.2, gravityMul, (v) => {
     gravityMul = v;
   });
-
   const wells = [
     { x: 0, y: 0, base: 0, strength: 0.78 },
     { x: 0, y: 0, base: 0, strength: 1 },
@@ -63,6 +62,13 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     orbiting: false,
     trail: [],
   }));
+
+  const baseBeadR = beads.map((b) => b.r);
+  hud.slider("Beads", 0.6, 2, 1, (v) => {
+    beads.forEach((b, i) => {
+      b.r = baseBeadR[i] * v;
+    });
+  });
 
   let drag: number | null = null;
   let px = 0;

@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 function mount(ctx: ExperienceContext): ExperienceHandle {
@@ -16,7 +17,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let bloom = 0;
   let held = false;
 
-  const radius = () => Math.min(w, h) * 0.3;
+  let size = 1;
+  const hud = createHud(ctx.host);
+  hud.slider("Size", 0.65, 1.45, size, (v) => {
+    size = v;
+  });
+  const radius = () => Math.min(w, h) * 0.3 * size;
 
   const hit = (x: number, y: number) => {
     return Math.hypot(x - w * 0.5, y - h * 0.5) < radius() * 1.15;
@@ -109,6 +115,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
       layer.destroy({ children: true });

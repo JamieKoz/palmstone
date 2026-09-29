@@ -34,6 +34,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   hud.slider("Pull", 0.4, 2.6, strength, (v) => {
     strength = v;
   });
+  const baseMagnetR = [34, 30];
+  hud.slider("Size", 0.55, 1.8, 1, (v) => {
+    magnets.forEach((m, i) => {
+      m.r = baseMagnetR[i] * v;
+    });
+  });
 
   const filings: Filing[] = Array.from({ length: 340 }, () => ({
     x: Math.random() * w,

@@ -14,6 +14,11 @@ type HudHandle = {
     value: number,
     onChange: (v: number) => void,
   ): { set(v: number): void; el: HTMLDivElement };
+  swatches(
+    colors: { hex: string; label: string }[],
+    initial: number,
+    onChange: (hex: string, index: number) => void,
+  ): HTMLDivElement;
   destroy(): void;
 };
 
@@ -96,6 +101,30 @@ export function createHud(host: HTMLElement): HudHandle {
         },
         el: wrap,
       };
+    },
+    swatches(colors, initial, onChange) {
+      const wrap = document.createElement("div");
+      wrap.className = "experience-hud__swatches";
+      const buttons: HTMLButtonElement[] = [];
+      colors.forEach((color, index) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "experience-hud__swatch";
+        btn.style.background = color.hex;
+        btn.setAttribute("aria-label", color.label);
+        btn.addEventListener("pointerdown", (e) => e.stopPropagation());
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          for (const other of buttons) other.classList.remove("is-active");
+          btn.classList.add("is-active");
+          onChange(color.hex, index);
+        });
+        if (index === initial) btn.classList.add("is-active");
+        buttons.push(btn);
+        wrap.appendChild(btn);
+      });
+      el.appendChild(wrap);
+      return wrap;
     },
     destroy() {
       el.remove();

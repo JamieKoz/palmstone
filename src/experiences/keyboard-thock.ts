@@ -1,4 +1,5 @@
 import { Container, Graphics, Text } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Key = {
@@ -165,7 +166,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   window.addEventListener("pointerup", onUp);
   el.style.touchAction = "none";
 
-  const DEPTH = 10; // visual key side wall height
+  let DEPTH = 10;
+  const hud = createHud(ctx.host);
+  hud.slider("Travel", 4, 22, DEPTH, (v) => {
+    DEPTH = v;
+  });
 
   return {
     update(dt: number) {
@@ -232,6 +237,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       layout();
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Bubble = {
@@ -29,8 +30,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     bubbles.length = 0;
     const narrow = w < 560;
     // Twice as many per row as the original grid; keep the original bubble radius
-    const cols = narrow ? 10 : 16;
-    const rows = narrow ? 7 : 6;
+    const cols = Math.max(4, Math.round((narrow ? 10 : 16) * density));
+    const rows = Math.max(3, Math.round((narrow ? 7 : 6) * density));
     const sizeCols = narrow ? 5 : 8;
     const marginX = w * 0.08;
     const marginY = h * 0.12;
@@ -56,6 +57,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       }
     }
   }
+  let density = 1;
+  const hud = createHud(ctx.host);
+  hud.slider("Sheet", 0.55, 1.35, density, (v) => {
+    density = v;
+    layout(true);
+  });
   layout();
 
   const hit = (x: number, y: number) => {
@@ -151,6 +158,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       layout(true);
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onPointerDown);
       el.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);

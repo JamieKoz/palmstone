@@ -7,6 +7,7 @@ import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
 import { getSharedAudio } from "@/engine/audio";
 import { getMuted, setMutedPref } from "@/engine/storage";
+import { ExperienceThumb } from "@/components/ExperienceThumb";
 import { PageRevealWipe } from "@/components/PageRevealWipe";
 import {
   experiencesInFolder,
@@ -15,7 +16,7 @@ import {
   signatureExperiences,
   type PlayFolder,
 } from "@/engine/catalog";
-import type { ExperienceMeta } from "@/engine/types";
+import type { ExperienceId, ExperienceMeta } from "@/engine/types";
 import {
   getFavourites,
   getPreferredModalities,
@@ -243,7 +244,7 @@ export function PlaygroundGallery() {
               }}
             >
               <FolderPreview
-                accents={signature.slice(0, 4).map((e) => e.accent)}
+                ids={signature.slice(0, 4).map((e) => e.id)}
                 tint="color-mix(in oklab, var(--jade) 32%, var(--panel))"
               />
               <span className="collection-box__copy">
@@ -263,7 +264,7 @@ export function PlaygroundGallery() {
               }}
             >
               <FolderPreview
-                accents={folderItems.slice(0, 4).map(({ folder }) => folder.accent)}
+                ids={folderCoverIds(folderItems)}
                 tint="color-mix(in oklab, var(--sand) 34%, var(--panel))"
               />
               <span className="collection-box__copy">
@@ -341,10 +342,10 @@ export function PlaygroundGallery() {
                         setOpen({ kind: "folder", folder });
                       }}
                     >
-                      <span
-                        className="folder-sheet__swatch"
-                        style={{ background: folder.accent }}
-                        aria-hidden
+                      <FolderPreview
+                        ids={items.slice(0, 4).map((e) => e.id)}
+                        tint={`color-mix(in oklab, ${folder.accent} 28%, var(--panel))`}
+                        compact
                       />
                       <span className="min-w-0 flex-1 text-left">
                         <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
@@ -369,11 +370,7 @@ export function PlaygroundGallery() {
                       onClick={() => onExperienceNavClick()}
                       className="folder-sheet__row"
                     >
-                      <span
-                        className="folder-sheet__swatch"
-                        style={{ background: exp.accent }}
-                        aria-hidden
-                      />
+                      <ExperienceThumb id={exp.id} />
                       <span className="min-w-0 flex-1">
                         <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
                           {exp.name}
@@ -443,28 +440,43 @@ function SfxToggle() {
   );
 }
 
+function folderCoverIds(groups: { items: ExperienceMeta[] }[]): ExperienceId[] {
+  const picked: ExperienceMeta[] = [];
+  const seen = new Set<string>();
+  const take = (item: ExperienceMeta | undefined) => {
+    if (!item || seen.has(item.id) || picked.length >= 4) return;
+    seen.add(item.id);
+    picked.push(item);
+  };
+  for (const group of groups) take(group.items[0]);
+  for (const group of groups) {
+    for (const item of group.items) take(item);
+  }
+  return picked.map((item) => item.id);
+}
+
 function FolderPreview({
-  accents,
+  ids,
   tint,
+  compact = false,
 }: {
-  accents: string[];
+  ids: ExperienceId[];
   tint: string;
+  compact?: boolean;
 }) {
-  const cells = [0, 1, 2, 3].map((i) => accents[i] ?? "transparent");
+  const cells = [0, 1, 2, 3].map((i) => ids[i]);
   return (
-    <div className="folder-preview" style={{ background: tint }}>
-      {cells.map((c, i) => (
-        <span
-          key={i}
-          className="folder-preview__cell"
-          style={{
-            background:
-              c === "transparent"
-                ? "color-mix(in oklab, var(--bg) 35%, transparent)"
-                : c,
-          }}
-        />
-      ))}
+    <div
+      className={compact ? "folder-preview folder-preview--mini" : "folder-preview"}
+      style={{ background: tint }}
+    >
+      {cells.map((id, i) =>
+        id ? (
+          <ExperienceThumb key={id} id={id} />
+        ) : (
+          <span key={i} className="folder-preview__cell" />
+        ),
+      )}
     </div>
   );
 }

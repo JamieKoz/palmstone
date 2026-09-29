@@ -1,3 +1,4 @@
+import { createHud } from "@/engine/hud";
 import type {
   ExperienceHandle,
   WebGLExperienceContext,
@@ -65,6 +66,7 @@ uniform vec2 uDelta;
 uniform float uPerturbance;
 uniform float uTime;
 uniform vec2 uRes;
+uniform vec3 uTint;
 out vec4 outColor;
 
 float hash(vec2 p) {
@@ -129,10 +131,10 @@ void main() {
   vec2 offset = -normalize(cross(dy, dx)).xz;
 
   vec2 uv = vUv + offset * uPerturbance;
-  vec3 col = sampleBackground(uv);
+  vec3 col = mix(sampleBackground(uv), uTint, 0.5);
 
   float specular = pow(max(0.0, dot(offset, normalize(vec2(-0.55, 1.0)))), 4.0);
-  col += vec3(0.55, 0.72, 0.8) * specular * 0.85;
+  col += mix(vec3(0.55, 0.72, 0.8), uTint, 0.7) * specular * 0.85;
 
   // Subtle fresnel rim from height
   col += vec3(0.12, 0.22, 0.28) * abs(height) * 0.15;
@@ -263,7 +265,32 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     perturbance: gl.getUniformLocation(renderProg, "uPerturbance"),
     time: gl.getUniformLocation(renderProg, "uTime"),
     res: gl.getUniformLocation(renderProg, "uRes"),
+    tint: gl.getUniformLocation(renderProg, "uTint"),
   };
+
+  let rings = 1;
+  let sizeMul = 1;
+  let tint: [number, number, number] = [0.25, 0.48, 0.58];
+  const hud = createHud(ctx.host);
+  hud.slider("Ripples", 1, 5, rings, (v) => {
+    rings = Math.round(v);
+  });
+  hud.slider("Size", 0.45, 2.2, sizeMul, (v) => {
+    sizeMul = v;
+  });
+  hud.swatches(
+    [
+      { hex: "#6a9fb5", label: "Pool" },
+      { hex: "#6db3a8", label: "Jade" },
+      { hex: "#8aa4c8", label: "Dusk" },
+      { hex: "#c4a574", label: "Sand" },
+    ],
+    0,
+    (hex) => {
+      const n = Number.parseInt(hex.slice(1), 16);
+      tint = [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    },
+  );
 
   const delta = [1 / SIM, 1 / SIM];
   const DROP_RADIUS = 20 / Math.max(w, h); // match jquery demo scale
@@ -297,6 +324,18 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.bindVertexArray(null);
+  };
+
+  const stamp = (uvX: number, uvY: number, radius: number, strength: number) => {
+    const count = Math.max(1, Math.round(rings));
+    for (let i = 0; i < count; i++) {
+      drop(
+        uvX,
+        uvY,
+        radius * sizeMul * (1 + i * 0.4),
+        strength * Math.max(0.22, 1 - i * 0.18),
+      );
+    }
   };
 
   const drop = (uvX: number, uvY: number, radius: number, strength: number) => {
@@ -333,7 +372,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
 
   const maybeDropAlong = (x: number, y: number, strength: number, radiusScale = 1) => {
     if (lastDropX < 0) {
-      drop(x, y, DROP_RADIUS * radiusScale, strength);
+      stamp(x, y, DROP_RADIUS * radiusScale, strength);
       lastDropX = x;
       lastDropY = y;
       return;
@@ -344,7 +383,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     const n = Math.min(8, Math.ceil(dist / step));
     for (let i = 1; i <= n; i++) {
       const t = i / n;
-      drop(
+      stamp(
         lastDropX + (x - lastDropX) * t,
         lastDropY + (y - lastDropY) * t,
         DROP_RADIUS * radiusScale,
@@ -415,6 +454,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       gl.uniform1f(renderLoc.perturbance, PERTURBANCE);
       gl.uniform1f(renderLoc.time, time);
       gl.uniform2f(renderLoc.res, canvas.width, canvas.height);
+      gl.uniform3f(renderLoc.tint, tint[0], tint[1], tint[2]);
       drawQuad();
     },
     resize(nw, nh) {
@@ -422,6 +462,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerleave", onLeave);

@@ -3,6 +3,7 @@
  * Adapted from Pavel Dobryakov’s WebGL Fluid Simulation (MIT):
  * https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
  */
+import { createHud } from "@/engine/hud";
 import type {
   ExperienceHandle,
   WebGLExperienceContext,
@@ -75,6 +76,14 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     SUNRAYS_WEIGHT: 1.0,
     BACK_COLOR: { r: 0, g: 0, b: 0 },
   };
+
+  const hud = createHud(ctx.host);
+  hud.slider("Dye", 0.1, 0.7, CONFIG.SPLAT_RADIUS, (v) => {
+    CONFIG.SPLAT_RADIUS = v;
+  });
+  hud.slider("Flow", 1800, 11000, CONFIG.SPLAT_FORCE, (v) => {
+    CONFIG.SPLAT_FORCE = v;
+  });
 
   gl.getExtension("EXT_color_buffer_float");
   gl.getExtension("OES_texture_float_linear");
@@ -1495,6 +1504,7 @@ void main () {
         pressureProgram,
         gradientSubtractProgram,
       ];
+      hud.destroy();
       for (const p of programs) gl.deleteProgram(p.program);
       displayMaterial.destroy();
 

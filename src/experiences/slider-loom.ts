@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Cord = {
@@ -52,6 +53,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       shuttleY = h * 0.5;
     }
   }
+  let bowAmount = 46;
+  const hud = createHud(ctx.host);
+  hud.slider("Bow", 12, 90, bowAmount, (v) => {
+    bowAmount = v;
+  });
   layout();
 
   const local = (e: PointerEvent) => {
@@ -125,7 +131,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       cords.forEach((c, i) => {
         const dx = shuttleX - c.x;
         const near = Math.exp(-(dx * dx) / (72 * 72));
-        const bow = near * Math.max(-1, Math.min(1, (svx || dx) / 280)) * 46;
+        const bow = near * Math.max(-1, Math.min(1, (svx || dx) / 280)) * bowAmount;
         c.vel += (bow - c.offset) * 12 * dt;
         c.vel *= Math.pow(0.9, dt * 60);
         c.offset += c.vel * 60 * dt;
@@ -173,6 +179,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       layout(true);
     },
     destroy() {
+      hud.destroy();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

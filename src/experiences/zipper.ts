@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 function mount(ctx: ExperienceContext): ExperienceHandle {
@@ -51,6 +52,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     dragging = false;
   };
 
+  let toothScale = 140;
+  const hud = createHud(ctx.host);
+  hud.slider("Teeth", 60, 260, toothScale, (v) => {
+    toothScale = v;
+  });
+
   const el = ctx.app.canvas;
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointermove", onMove);
@@ -63,7 +70,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       const dOpen = open - lastOpen;
       if (Math.abs(dOpen) > 0.0008) {
         // Accumulate travel in "tooth" units — denser bumps = real zipper teeth
-        toothPhase += Math.abs(dOpen) * 140;
+        toothPhase += Math.abs(dOpen) * toothScale;
         let teeth = 0;
         while (toothPhase > 1 && teeth < 6) {
           toothPhase -= 1;
@@ -156,6 +163,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

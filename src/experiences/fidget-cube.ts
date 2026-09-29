@@ -1,4 +1,5 @@
 import { Container, Graphics, Text } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 /** Six faces with distinct micro-interactions. */
@@ -60,7 +61,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let startY = 0;
   let dragMoved = false;
 
-  const size = () => Math.min(w, h) * 0.34;
+  let cubeScale = 1;
+  const hud = createHud(ctx.host);
+  hud.slider("Size", 0.7, 1.35, cubeScale, (v) => {
+    cubeScale = v;
+  });
+  const size = () => Math.min(w, h) * 0.34 * cubeScale;
   const arrowPad = () => Math.min(56, Math.min(w, h) * 0.1);
 
   const syncFace = () => {
@@ -425,6 +431,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

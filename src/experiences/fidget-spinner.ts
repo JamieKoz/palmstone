@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 function mount(ctx: ExperienceContext): ExperienceHandle {
@@ -61,6 +62,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     }
   };
 
+  let coast = 0.55;
+  const hud = createHud(ctx.host);
+  hud.slider("Coast", 0.15, 1.4, coast, (v) => {
+    coast = 1.55 - v;
+  });
+
   const el = ctx.app.canvas;
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointermove", onMove);
@@ -71,7 +78,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     update(dt: number) {
       if (!held) {
         // Friction
-        omega *= Math.exp(-dt * 0.55);
+        omega *= Math.exp(-dt * coast);
         if (Math.abs(omega) < 0.15) omega = 0;
         angle += omega * dt;
       }
@@ -136,6 +143,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

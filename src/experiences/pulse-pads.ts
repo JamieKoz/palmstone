@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import { getSharedAudio } from "@/engine/audio";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
@@ -29,6 +30,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   const tints = [0x6a8f7a, 0x7a9e6a, 0x8fbc6a, 0xa8c478, 0x6a9e8f, 0x5a8f9e, 0x8f8a6a, 0xb0a070];
 
   const pads: Pad[] = [];
+  let padScale = 1;
+  const hud = createHud(ctx.host);
   function layout() {
     pads.length = 0;
     // Narrow screens: stack 2×4 so pads stay thumb-sized
@@ -39,7 +42,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     const marginY = narrow ? h * 0.12 : h / (rows + 1.2);
     const cellW = narrow ? (w - marginX * 2) / cols : w / (cols + 1);
     const cellH = narrow ? (h - marginY * 2) / rows : h / (rows + 1.2);
-    const radius = Math.min(cellW, cellH) * (narrow ? 0.4 : 0.34);
+    const radius = Math.min(cellW, cellH) * (narrow ? 0.4 : 0.34) * padScale;
     let i = 0;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -55,6 +58,10 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       }
     }
   }
+  hud.slider("Size", 0.7, 1.35, padScale, (v) => {
+    padScale = v;
+    layout();
+  });
   layout();
 
   const hit = (x: number, y: number) => {
@@ -120,6 +127,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       layout();
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       layer.destroy({ children: true });
     },

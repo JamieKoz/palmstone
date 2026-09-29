@@ -1,4 +1,5 @@
 import { Assets, Container, Graphics, Sprite } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 /**
@@ -121,6 +122,12 @@ async function mount(ctx: ExperienceContext): Promise<ExperienceHandle> {
   };
 
   let lampLayout = layoutLamp();
+  let cordScale = 1;
+  const hud = createHud(ctx.host);
+  hud.slider("Cord", 0.7, 1.45, cordScale, (v) => {
+    cordScale = v;
+    rebuildRope();
+  });
 
   const anchor = () => ({ x: lampLayout.ringX, y: lampLayout.ringY });
 
@@ -130,7 +137,7 @@ async function mount(ctx: ExperienceContext): Promise<ExperienceHandle> {
     lampLayout = layoutLamp();
     const a = anchor();
     // Shorter cord — hangs above the table
-    restLength = Math.min(h * 0.145, lampLayout.tableTop - a.y - 24, 96);
+    restLength = Math.min(h * 0.145, lampLayout.tableTop - a.y - 24, 96) * cordScale;
     restLength = Math.max(56, restLength);
     const segLen = restLength / (SEGMENTS - 1);
     for (let i = 0; i < SEGMENTS; i++) {
@@ -415,6 +422,7 @@ async function mount(ctx: ExperienceContext): Promise<ExperienceHandle> {
       rebuildRope();
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

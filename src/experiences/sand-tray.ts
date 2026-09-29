@@ -273,6 +273,16 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     void audio.resume();
     haptics.tap(8);
   });
+  let grainScale = 1;
+  let pourEvery = 0.018;
+  hud.slider("Grain", 0.6, 2.2, grainScale, (v) => {
+    const k = v / grainScale;
+    grainScale = v;
+    for (const grain of grains) grain.r *= k;
+  });
+  hud.slider("Flow", 0.25, 1, 0.82, (v) => {
+    pourEvery = 0.055 - v * 0.045;
+  });
   hud.button("Reset", () => {
     fillBed();
     void audio.resume();
@@ -353,8 +363,8 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
 
       if (pouring) {
         fallAcc += dt;
-        while (fallAcc > 0.018) {
-          fallAcc -= 0.018;
+        while (fallAcc > pourEvery) {
+          fallAcc -= pourEvery;
           const x = (t.mouthLeft + t.mouthRight) * 0.5 + (Math.random() - 0.5) * (t.mouthRight - t.mouthLeft) * 0.45;
           if (grains.length < MAX) {
             grains.push(spawnGrain(t, x, -8 - Math.random() * 24, true));

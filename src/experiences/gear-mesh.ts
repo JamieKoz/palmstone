@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
 type Gear = {
@@ -49,6 +50,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     }
   }
   build();
+
+  let coast = 0.988;
+  const hud = createHud(ctx.host);
+  hud.slider("Coast", 0.94, 0.998, coast, (v) => {
+    coast = v;
+  });
 
   let drag: number | null = null;
   let lastAngle = 0;
@@ -120,7 +127,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         lastAngle = ang;
         propagate(drag, gear.omega, new Set());
       } else {
-        for (const gear of gears) gear.omega *= Math.pow(0.988, dt * 60);
+        for (const gear of gears) gear.omega *= Math.pow(coast, dt * 60);
         let maxI = 0;
         for (let i = 1; i < gears.length; i++) {
           if (Math.abs(gears[i].omega) > Math.abs(gears[maxI].omega)) maxI = i;
@@ -167,6 +174,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       build();
     },
     destroy() {
+      hud.destroy();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
