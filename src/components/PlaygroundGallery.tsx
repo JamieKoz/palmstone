@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
+import { getSharedAudio } from "@/engine/audio";
+import { getMuted, setMutedPref } from "@/engine/storage";
 import { PageRevealWipe } from "@/components/PageRevealWipe";
 import {
   experiencesInFolder,
   getMeta,
   PLAY_FOLDERS,
-  studioExperiences,
+  signatureExperiences,
   type PlayFolder,
 } from "@/engine/catalog";
 import type { ExperienceMeta } from "@/engine/types";
@@ -23,17 +26,21 @@ import {
 } from "@/engine/storage";
 
 type OpenFolder =
-  | { kind: "play"; folder: PlayFolder }
+  | { kind: "signature" }
+  | { kind: "premium" }
+  | { kind: "folder"; folder: PlayFolder }
   | { kind: "favourites" }
   | null;
 
 export function PlaygroundGallery() {
+  const router = useRouter();
   const [favs, setFavs] = useState<string[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState<OpenFolder>(null);
   const [closing, setClosing] = useState(false);
+  const [panelKey, setPanelKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +89,7 @@ export function PlaygroundGallery() {
     [favs],
   );
 
-  const studio = useMemo(() => studioExperiences(), []);
+  const signature = useMemo(() => signatureExperiences(), []);
 
   const forYou = useMemo(() => {
     if (!ready) return [];
@@ -106,34 +113,64 @@ export function PlaygroundGallery() {
   const openItems: ExperienceMeta[] =
     open?.kind === "favourites"
       ? favExperiences
-      : open?.kind === "play"
-        ? sortByAffinity(experiencesInFolder(open.folder))
-        : [];
+      : open?.kind === "signature"
+        ? sortByAffinity(signature)
+        : open?.kind === "folder"
+          ? sortByAffinity(experiencesInFolder(open.folder))
+          : [];
 
   const openTitle =
     open?.kind === "favourites"
       ? "Favourites"
-      : open?.kind === "play"
-        ? open.folder.name
-        : "";
+      : open?.kind === "signature"
+        ? "Signature"
+        : open?.kind === "premium"
+          ? "Premium"
+          : open?.kind === "folder"
+            ? open.folder.name
+            : "";
+
+  const openKicker =
+    open?.kind === "favourites"
+      ? "Kept close"
+      : open?.kind === "signature"
+        ? "Play now"
+        : open?.kind === "premium"
+          ? "Categories"
+          : open?.kind === "folder"
+            ? "Premium"
+            : "";
 
   const openAccent =
     open?.kind === "favourites"
       ? "var(--sand)"
-      : open?.kind === "play"
-        ? open.folder.accent
-        : "var(--jade)";
+      : open?.kind === "signature"
+        ? "var(--jade)"
+        : open?.kind === "premium"
+          ? "var(--sand)"
+          : open?.kind === "folder"
+            ? open.folder.accent
+            : "var(--jade)";
 
   const loved = forYou.map((e) => e.name);
   const subtitle = !ready
-    ? "Pick a feel. Stay as long as you like."
+    ? "Signature is ready. Premium goes deeper."
     : loved.length > 0
       ? loved.length === 1
         ? `You keep coming back to ${loved[0]}.`
         : `You keep coming back to ${loved[0]} and ${loved[1]}.`
       : prefs.length > 0
-        ? `You lean ${prefs[0].toLowerCase()} — open a folder to play.`
-        : "Open a folder. Stay as long as you like.";
+        ? `You lean ${prefs[0].toLowerCase()}. Signature is ready when you are.`
+        : "Signature is ready. Premium goes deeper.";
+
+  const surprise = useCallback(() => {
+    const pool = signature.filter((exp) => exp.id !== continueMeta?.id);
+    const choices = pool.length > 0 ? pool : signature;
+    const pick = choices[Math.floor(Math.random() * choices.length)];
+    if (!pick) return;
+    onExperienceNavClick();
+    router.push(`/playground/${pick.id}`);
+  }, [signature, continueMeta, router]);
 
   return (
     <>
@@ -155,111 +192,85 @@ export function PlaygroundGallery() {
               </Link>
               <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
             </div>
-            <MusicWaveToggle className="sound-wave-btn--gallery" />
-          </header>
-
-          {continueMeta && (
-            <Link
-              href={`/playground/${continueMeta.id}`}
-              onClick={() => onExperienceNavClick()}
-              className="mb-8 flex items-center justify-between gap-4 rounded-2xl px-4 py-4 transition sm:px-5"
-              style={{
-                background: "color-mix(in oklab, var(--panel) 70%, transparent)",
-                borderLeft: `3px solid ${continueMeta.accent}`,
-              }}
-            >
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Continue</p>
-                <p className="mt-1 font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">
-                  {continueMeta.name}
-                </p>
-              </div>
-              <span className="text-[var(--jade)]">Play →</span>
-            </Link>
-          )}
-
-          {forYou.length > 0 && (
-            <div className="for-you">
-              <span className="for-you__label self-center pl-1">For you</span>
-              {forYou.map((exp) => (
-                <Link
-                  key={exp.id}
-                  href={`/playground/${exp.id}`}
-                  onClick={() => onExperienceNavClick()}
-                  className="for-you__chip"
-                  style={{ ["--chip" as string]: exp.accent }}
-                >
-                  {exp.name}
-                </Link>
-              ))}
-            </div>
-          )}
-
-          <section className="studio-block">
-            <h2 className="section-kicker">Studio</h2>
-            <div className="studio-grid">
-              {studio.map((exp, i) => (
-                <Link
-                  key={exp.id}
-                  href={`/playground/${exp.id}`}
-                  onClick={() => onExperienceNavClick()}
-                  className="studio-tile"
-                  style={{
-                    ["--tile-accent" as string]: exp.accent,
-                    animationDelay: `${i * 40}ms`,
+            <div className="gallery-audio">
+              <MusicWaveToggle className="sound-wave-btn--gallery" />
+              <SfxToggle />
+              {favExperiences.length > 0 && (
+                <button
+                  type="button"
+                  className="favourites-link"
+                  onClick={() => {
+                    playUiClick();
+                    setOpen({ kind: "favourites" });
                   }}
                 >
-                  <span className="studio-tile__bar" aria-hidden />
-                  <span className="studio-tile__name">{exp.name}</span>
-                  <span className="studio-tile__meta">
-                    <span className="studio-tile__tag">{exp.tagline}</span>
-                    <span className="signature-mark">Signature</span>
-                  </span>
-                </Link>
-              ))}
+                  Favourites
+                  <span>{favExperiences.length}</span>
+                </button>
+              )}
             </div>
-          </section>
+          </header>
 
-          <h2 className="section-kicker">Field</h2>
-
-          <div className="folder-grid">
-            {favExperiences.length > 0 && (
-              <button
-                type="button"
-                className="folder-tile"
-                onClick={() => {
-                  playUiClick();
-                  setOpen({ kind: "favourites" });
-                }}
+          <div className="quick-row">
+            {continueMeta && (
+              <Link
+                href={`/playground/${continueMeta.id}`}
+                onClick={() => onExperienceNavClick()}
+                className="continue-card"
+                style={{ borderLeftColor: continueMeta.accent }}
               >
-                <FolderPreview
-                  accents={favExperiences.slice(0, 4).map((e) => e.accent)}
-                  tint="color-mix(in oklab, var(--sand) 35%, var(--panel))"
-                />
-                <span className="folder-tile__name">Favourites</span>
-                <span className="folder-tile__count">{favExperiences.length}</span>
-              </button>
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Continue</p>
+                  <p className="mt-1 truncate font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">
+                    {continueMeta.name}
+                  </p>
+                </div>
+                <span className="text-[var(--jade)]">Play →</span>
+              </Link>
             )}
+            <button type="button" className="surprise-btn" onClick={surprise}>
+              Surprise me
+            </button>
+          </div>
 
-            {folderItems.map(({ folder, items }, i) => (
-              <button
-                type="button"
-                key={folder.id}
-                className="folder-tile"
-                style={{ animationDelay: `${i * 50}ms` }}
-                onClick={() => {
-                  playUiClick();
-                  setOpen({ kind: "play", folder });
-                }}
-              >
-                <FolderPreview
-                  accents={items.slice(0, 4).map((e) => e.accent)}
-                  tint={`color-mix(in oklab, ${folder.accent} 28%, var(--panel))`}
-                />
-                <span className="folder-tile__name">{folder.name}</span>
-                <span className="folder-tile__blurb">{folder.blurb}</span>
-              </button>
-            ))}
+          <div className="collection-row">
+            <button
+              type="button"
+              className="collection-box"
+              onClick={() => {
+                playUiClick();
+                setOpen({ kind: "signature" });
+              }}
+            >
+              <FolderPreview
+                accents={signature.slice(0, 4).map((e) => e.accent)}
+                tint="color-mix(in oklab, var(--jade) 32%, var(--panel))"
+              />
+              <span className="collection-box__copy">
+                <span className="collection-box__name">Signature</span>
+                <span className="collection-box__blurb">
+                  {signature.length} experiences, ready to play.
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="collection-box collection-box--premium"
+              onClick={() => {
+                playUiClick();
+                setOpen({ kind: "premium" });
+              }}
+            >
+              <FolderPreview
+                accents={folderItems.slice(0, 4).map(({ folder }) => folder.accent)}
+                tint="color-mix(in oklab, var(--sand) 34%, var(--panel))"
+              />
+              <span className="collection-box__copy">
+                <span className="collection-box__name">Premium</span>
+                <span className="collection-box__blurb">Categories inside.</span>
+              </span>
+            </button>
           </div>
         </div>
       </div>
@@ -278,6 +289,7 @@ export function PlaygroundGallery() {
             onClick={closeFolder}
           />
           <div
+            key={panelKey}
             className="folder-sheet__panel"
             style={{ ["--folder-accent" as string]: openAccent }}
             onAnimationEnd={(e) => {
@@ -289,7 +301,20 @@ export function PlaygroundGallery() {
           >
             <div className="folder-sheet__head">
               <div className="min-w-0 flex-1">
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Folder</p>
+                {open.kind === "folder" ? (
+                  <button
+                    type="button"
+                    className="folder-sheet__back"
+                    onClick={() => {
+                      playUiClick();
+                      setOpen({ kind: "premium" });
+                    }}
+                  >
+                    ← Premium
+                  </button>
+                ) : (
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">{openKicker}</p>
+                )}
                 <h2 className="mt-1 font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">
                   {openTitle}
                 </h2>
@@ -303,6 +328,37 @@ export function PlaygroundGallery() {
               </button>
             </div>
 
+            {open.kind === "premium" ? (
+              <ul className="folder-sheet__list">
+                {folderItems.map(({ folder, items }) => (
+                  <li key={folder.id}>
+                    <button
+                      type="button"
+                      className="folder-sheet__row"
+                      onClick={() => {
+                        playUiClick();
+                        setPanelKey((key) => key + 1);
+                        setOpen({ kind: "folder", folder });
+                      }}
+                    >
+                      <span
+                        className="folder-sheet__swatch"
+                        style={{ background: folder.accent }}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
+                          {folder.name}
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm text-[var(--mist)]">
+                          {folder.blurb} · {items.length}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
             <ul className="folder-sheet__list">
               {openItems.map((exp) => {
                 const starred = favs.includes(exp.id);
@@ -326,15 +382,6 @@ export function PlaygroundGallery() {
                           {exp.tagline}
                         </span>
                       </span>
-                      {exp.collection === "studio" ? (
-                        <span className="signature-mark hidden sm:inline">Signature</span>
-                      ) : (
-                        exp.badge && (
-                          <span className="hidden rounded-full bg-[color-mix(in_oklab,var(--jade)_25%,transparent)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--jade)] sm:inline">
-                            {exp.badge}
-                          </span>
-                        )
-                      )}
                     </Link>
                     <button
                       type="button"
@@ -355,10 +402,44 @@ export function PlaygroundGallery() {
                 );
               })}
             </ul>
+            )}
           </div>
         </div>
       )}
     </>
+  );
+}
+
+function SfxToggle() {
+  const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setMuted(getMuted());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <button
+      type="button"
+      className={["sfx-toggle", muted ? "ui-toggle-off" : ""].filter(Boolean).join(" ")}
+      aria-pressed={muted}
+      aria-label={muted ? "Unmute experience sounds" : "Mute experience sounds"}
+      onClick={() => {
+        const next = !muted;
+        if (next) playUiClick();
+        setMuted(next);
+        setMutedPref(next);
+        getSharedAudio().setMuted(next);
+        if (!next) playUiClick();
+      }}
+    >
+      SFX
+    </button>
   );
 }
 

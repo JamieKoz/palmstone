@@ -119,6 +119,7 @@ export interface ExperienceHandle {
   destroy(): void;
 }
 
+/** `studio` is the Signature set. `field` is Premium, grouped into categories. */
 export type ExperienceCollection = "studio" | "field";
 
 export interface ExperienceMeta {
@@ -128,7 +129,7 @@ export interface ExperienceMeta {
   tagline: string;
   hint: string;
   accent: string;
-  /** Studio is the elevated set; field stays in the everyday folders. */
+  /** Signature (`studio`) opens as a list. Premium (`field`) sits in categories. */
   collection: ExperienceCollection;
   /** Optional badge in gallery — e.g. WebGL */
   badge?: string;

@@ -5,7 +5,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "mesh-lattice",
     name: "Mesh Lattice",
-    collection: "studio",
+    collection: "field",
     modality: "WebGL",
     tagline: "Orbit the lattice. Search a song and watch it dance.",
     hint: "Drag to orbit. Scroll to zoom, or use the Zoom slider on a phone.",
@@ -25,7 +25,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "silk-fluid",
     name: "Silk Fluid",
-    collection: "studio",
+    collection: "field",
     modality: "Fluid",
     tagline: "Drag colorful dye through a living fluid field.",
     hint: "Drag to splash and swirl. Colors bloom as they flow.",
@@ -208,7 +208,7 @@ export function isExperienceId(id: string): id is ExperienceId {
 
 export const MODALITIES = Array.from(new Set(CATALOG.map((e) => e.modality)));
 
-/** Condensed home-screen folders (iOS-style). */
+/** Premium categories. Signature stays a flat list, not a folder. */
 export type PlayFolder = {
   id: string;
   name: string;
@@ -221,9 +221,9 @@ export const PLAY_FOLDERS: PlayFolder[] = [
   {
     id: "physics",
     name: "Physics",
-    blurb: "Gears, weave, zipper",
+    blurb: "Gears, fluid, lattice",
     accent: "#c9a66b",
-    modalities: ["Elastic", "Force", "Spatial", "Mechanical", "Slide"],
+    modalities: ["Elastic", "Force", "Spatial", "Mechanical", "Slide", "Fluid", "WebGL"],
   },
   {
     id: "buttons",
@@ -242,8 +242,6 @@ export const PLAY_FOLDERS: PlayFolder[] = [
 ];
 
 const STUDIO_ORDER: ExperienceId[] = [
-  "mesh-lattice",
-  "silk-fluid",
   "ripple-pool",
   "sand-tray",
   "elastic-web",
@@ -252,8 +250,13 @@ const STUDIO_ORDER: ExperienceId[] = [
   "stone-polish",
 ];
 
-export function studioExperiences(): ExperienceMeta[] {
+/** Signature experiences — open the box and play. */
+export function signatureExperiences(): ExperienceMeta[] {
   return STUDIO_ORDER.map((id) => getMeta(id)).filter((e): e is ExperienceMeta => !!e);
+}
+
+export function studioExperiences(): ExperienceMeta[] {
+  return signatureExperiences();
 }
 
 export function experiencesInFolder(folder: PlayFolder): ExperienceMeta[] {

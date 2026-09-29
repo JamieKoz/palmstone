@@ -810,7 +810,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
 
 export const meshLattice: WebGLExperienceModule = {
   id: "mesh-lattice",
-  collection: "studio",
+  collection: "field",
   kind: "webgl",
   name: "Mesh Lattice",
   modality: "WebGL",
