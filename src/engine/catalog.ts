@@ -45,7 +45,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "elastic-web",
     name: "Elastic Web",
-    collection: "studio",
+    collection: "field",
     modality: "Elastic",
     tagline: "Pull nodes — spring-back and harmonic wobble.",
     hint: "Grab a node and pull. Release to watch it settle.",
@@ -54,7 +54,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "magnetic-field",
     name: "Magnetic Field",
-    collection: "studio",
+    collection: "field",
     modality: "Force",
     tagline: "Drag the magnets — filings cling to one pole and flee the other.",
     hint: "Drag a disc, or the empty space. Pull sets how hard the field grabs. Double-tap to flip a pole.",
@@ -81,7 +81,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "pulse-pads",
     name: "Pulse Pads",
-    collection: "field",
+    collection: "studio",
     modality: "Rhythm",
     tagline: "Tap pads — each hits a distinct bongo tone.",
     hint: "Tap any pad. Each has its own bongo pitch.",
@@ -109,7 +109,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "pen-clicker",
     name: "Pen Clicker",
-    collection: "field",
+    collection: "studio",
     modality: "Click",
     tagline: "Retractable click — tip out, tip in, again.",
     hint: "Press and hold the clicker, then release.",
@@ -118,7 +118,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "light-switch",
     name: "Light Switch",
-    collection: "field",
+    collection: "studio",
     modality: "Toggle",
     tagline: "Flip the paddle — room light answers the clack.",
     hint: "Tap or drag the switch up and down.",
@@ -163,7 +163,7 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "bubble-wrap",
     name: "Bubble Wrap",
-    collection: "field",
+    collection: "studio",
     modality: "Pop",
     tagline: "Pop every blister — soft membrane snap.",
     hint: "Tap or drag to pop. Sheet refills when empty.",
@@ -172,16 +172,16 @@ export const CATALOG: ExperienceMeta[] = [
   {
     id: "fidget-cube",
     name: "Fidget Cube",
-    collection: "field",
+    collection: "studio",
     modality: "Fidget",
-    tagline: "Play the face — arrows flip to click, switch, dial, stick, gear, soft.",
-    hint: "Drag the face to play. Use the arrows to rotate.",
+    tagline: "Turn the cube. Each face is its own fidget.",
+    hint: "Drag to turn it. Play the face that lands toward you.",
     accent: "#c45a4a",
   },
   {
     id: "fidget-spinner",
     name: "Fidget Spinner",
-    collection: "field",
+    collection: "studio",
     modality: "Fidget",
     tagline: "Flick the arms — bearings hum, then coast to still.",
     hint: "Drag to spin. Flick hard for a long coast.",
@@ -244,10 +244,14 @@ export const PLAY_FOLDERS: PlayFolder[] = [
 const STUDIO_ORDER: ExperienceId[] = [
   "ripple-pool",
   "sand-tray",
-  "elastic-web",
-  "magnetic-field",
   "orbit-beads",
   "stone-polish",
+  "pen-clicker",
+  "light-switch",
+  "pulse-pads",
+  "fidget-spinner",
+  "fidget-cube",
+  "bubble-wrap",
 ];
 
 /** Signature experiences — open the box and play. */

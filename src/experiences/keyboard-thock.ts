@@ -1,4 +1,5 @@
 import { Container, Graphics, Text } from "pixi.js";
+import { countToward, unlockAchievement } from "@/engine/achievements";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
@@ -135,6 +136,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   };
 
   const held = new Set<number>();
+  const pressedLabels = new Set<string>();
   let pointerDown = false;
 
   const el = ctx.app.canvas;
@@ -153,6 +155,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     keys[i].press = 1;
     audio.keyStroke("down", 0.9, keys[i].pitch);
     haptics.tap(12);
+    pressedLabels.add(keys[i].label || "space");
+    countToward("key-presses", [
+      { id: "keys-forty", goal: 150 },
+      { id: "keys-flood", goal: 400 },
+    ]);
+    if (pressedLabels.size >= 18) unlockAchievement("keys-spread");
+    const letters = [...pressedLabels].filter((label) => /^[a-z]$/i.test(label));
+    if (letters.length >= 26) unlockAchievement("keys-alphabet");
   };
 
   const releaseKey = (i: number) => {

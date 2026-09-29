@@ -1,3 +1,4 @@
+import { unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import { getSharedAudio } from "@/engine/audio";
@@ -71,7 +72,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     return null;
   };
 
+  const heardPads = new Set<number>();
+  let padHits = 0;
+
   const strike = (i: number) => {
+    heardPads.add(i);
+    padHits += 1;
+    if (pads.length > 0 && heardPads.size >= pads.length) unlockAchievement("pads-all");
+    if (padHits >= 80) unlockAchievement("pads-session");
     const pad = pads[i];
     pad.bloom = 1;
     shared.bongo(pad.freq, 0.75 + (i % 3) * 0.08);
@@ -136,7 +144,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const pulsePads: ExperienceModule = {
   id: "pulse-pads",
-  collection: "field",
+  collection: "studio",
   name: "Pulse Pads",
   modality: "Rhythm",
   tagline: "Tap pads — each hits a distinct bongo tone.",

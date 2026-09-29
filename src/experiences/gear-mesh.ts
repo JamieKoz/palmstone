@@ -1,3 +1,4 @@
+import { unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -58,6 +59,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   });
 
   let drag: number | null = null;
+  let coastTime = 0;
   let lastAngle = 0;
   let px = 0;
   let py = 0;
@@ -118,6 +120,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   return {
     update(dt: number) {
       if (drag != null) {
+        coastTime = 0;
         const gear = gears[drag];
         const ang = Math.atan2(py - gear.y, px - gear.x);
         let dAng = ang - lastAngle;
@@ -132,6 +135,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         for (let i = 1; i < gears.length; i++) {
           if (Math.abs(gears[i].omega) > Math.abs(gears[maxI].omega)) maxI = i;
         }
+        if (Math.abs(gears[maxI].omega) > 1) {
+          coastTime += dt;
+          if (coastTime >= 12) unlockAchievement("gear-coast");
+          if (coastTime >= 25) unlockAchievement("gear-long");
+        } else coastTime = 0;
         if (Math.abs(gears[maxI].omega) > 0.04) {
           propagate(maxI, gears[maxI].omega, new Set());
         }

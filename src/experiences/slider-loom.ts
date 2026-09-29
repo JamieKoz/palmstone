@@ -1,3 +1,4 @@
+import { unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -28,6 +29,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let shuttleX = 0;
   let shuttleY = 0;
   let svx = 0;
+  let shuttleMin = 0;
+  let shuttleMax = 0;
   let svy = 0;
   let held = false;
   let px = 0;
@@ -77,15 +80,21 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     void audio.resume();
     haptics.tap(8);
     audio.click(0.22, 0.9);
+    shuttleMin = px;
+    shuttleMax = px;
   };
   const onMove = (e: PointerEvent) => {
     const p = local(e);
     px = p.x;
     py = p.y;
+    if (!held) return;
+    shuttleMin = Math.min(shuttleMin, px);
+    shuttleMax = Math.max(shuttleMax, px);
   };
   const onUp = () => {
     if (!held) return;
     held = false;
+    if (shuttleMax - shuttleMin > w * 0.55) unlockAchievement("loom-cross");
     const left = w * 0.16;
     const right = w * 0.84;
     const flung = Math.abs(svx) > 240;

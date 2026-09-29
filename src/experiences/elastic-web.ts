@@ -1,3 +1,4 @@
+import { unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -57,6 +58,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let py = 0;
   let stretchAcc = 0;
   let peakStretch = 0;
+  let yanks = 0;
 
   const nearest = (x: number, y: number) => {
     let best = 0;
@@ -89,6 +91,12 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   };
   const onUp = () => {
     if (drag != null) {
+      if (peakStretch >= 180) {
+        unlockAchievement("elastic-yank");
+        yanks += 1;
+        if (yanks >= 15) unlockAchievement("elastic-five");
+        if (yanks >= 30) unlockAchievement("elastic-thirty");
+      }
       const snap = Math.min(1, peakStretch / 140);
       audio.elasticRelease(0.55 + snap * 0.45, 0.85 + snap * 0.7);
       haptics.pattern([0, 8, 20, 12]);
@@ -221,7 +229,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const elasticWeb: ExperienceModule = {
   id: "elastic-web",
-  collection: "studio",
+  collection: "field",
   name: "Elastic Web",
   modality: "Elastic",
   tagline: "Pull nodes — spring-back and harmonic wobble.",

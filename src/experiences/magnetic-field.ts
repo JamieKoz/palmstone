@@ -256,7 +256,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
 
 export const magneticField: ExperienceModule = {
   id: "magnetic-field",
-  collection: "studio",
+  collection: "field",
   name: "Magnetic Field",
   modality: "Force",
   tagline: "Drag the magnets — filings cling to one pole and flee the other.",

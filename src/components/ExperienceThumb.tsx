@@ -423,12 +423,17 @@ const THUMBS: Record<ExperienceId, ReactNode> = {
     </Frame>
   ),
   "fidget-cube": (
-    <Frame fill="#121416">
-      <polygon points="24,8 40,17 24,26 8,17" fill="#3a424c" />
-      <polygon points="8,17 24,26 24,42 8,33" fill="#2a3038" />
-      <polygon points="24,26 40,17 40,33 24,42" fill="#c45a4a" />
-      <circle cx="32" cy="29.5" r="4.2" fill="#fff" fillOpacity="0.55" />
-      <circle cx="30.6" cy="28.2" r="1.3" fill="#fff" fillOpacity="0.7" />
+    <Frame fill="#101216">
+      <polygon points="24,7 41,16 24,25 7,16" fill="#3a424c" />
+      <polygon points="7,16 24,25 24,43 7,34" fill="#2a3038" />
+      <polygon points="24,25 41,16 41,34 24,43" fill="#c45a4a" />
+      <polygon points="24,10 38,17.5 24,25 10,17.5" fill="#8a7d6c" fillOpacity="0.95" />
+      <circle cx="24" cy="17.5" r="1.7" fill="#d9d2c6" />
+      <circle cx="32" cy="30" r="3.1" fill="#f3ebe3" />
+      <circle cx="32" cy="24.6" r="1.7" fill="#e7ddd2" />
+      <circle cx="32" cy="35.2" r="1.7" fill="#e7ddd2" />
+      <circle cx="27.2" cy="30" r="1.7" fill="#e7ddd2" />
+      <circle cx="36.6" cy="30" r="1.7" fill="#e7ddd2" />
     </Frame>
   ),
   "fidget-spinner": (

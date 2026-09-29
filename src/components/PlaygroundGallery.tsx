@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ACHIEVEMENTS, syncLifetimeAchievements } from "@/engine/achievements";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
 import { getSharedAudio } from "@/engine/audio";
@@ -19,6 +20,7 @@ import {
 import type { ExperienceId, ExperienceMeta } from "@/engine/types";
 import {
   getFavourites,
+  getAchievements,
   getPreferredModalities,
   getRecents,
   sortByAffinity,
@@ -31,6 +33,7 @@ type OpenFolder =
   | { kind: "premium" }
   | { kind: "folder"; folder: PlayFolder }
   | { kind: "favourites" }
+  | { kind: "achievements" }
   | null;
 
 export function PlaygroundGallery() {
@@ -39,6 +42,7 @@ export function PlaygroundGallery() {
   const [recents, setRecents] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
+  const [earned, setEarned] = useState<string[]>([]);
   const [open, setOpen] = useState<OpenFolder>(null);
   const [closing, setClosing] = useState(false);
   const [panelKey, setPanelKey] = useState(0);
@@ -50,7 +54,9 @@ export function PlaygroundGallery() {
       setFavs(getFavourites());
       setRecents(getRecents());
       setPrefs(getPreferredModalities(2));
+      setEarned(getAchievements());
       setReady(true);
+      syncLifetimeAchievements();
     });
     return () => {
       cancelled = true;
@@ -129,7 +135,9 @@ export function PlaygroundGallery() {
           ? "Premium"
           : open?.kind === "folder"
             ? open.folder.name
-            : "";
+            : open?.kind === "achievements"
+              ? "Achievements"
+              : "";
 
   const openKicker =
     open?.kind === "favourites"
@@ -140,7 +148,9 @@ export function PlaygroundGallery() {
           ? "Categories"
           : open?.kind === "folder"
             ? "Premium"
-            : "";
+            : open?.kind === "achievements"
+              ? `${earned.length} of ${ACHIEVEMENTS.length}`
+              : "";
 
   const openAccent =
     open?.kind === "favourites"
@@ -151,7 +161,9 @@ export function PlaygroundGallery() {
           ? "var(--sand)"
           : open?.kind === "folder"
             ? open.folder.accent
-            : "var(--jade)";
+            : open?.kind === "achievements"
+              ? "var(--sand)"
+              : "var(--jade)";
 
   const loved = forYou.map((e) => e.name);
   const subtitle = !ready
@@ -181,8 +193,8 @@ export function PlaygroundGallery() {
         <div className="grain-overlay" aria-hidden />
 
         <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-[max(4rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 sm:pt-12">
-          <header className="mb-8 flex flex-col gap-6 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
-            <div>
+          <header className="mb-8 sm:mb-10">
+            <div className="flex items-start justify-between gap-3">
               <Link
                 href="/"
                 onClick={() => playUiClick()}
@@ -191,11 +203,13 @@ export function PlaygroundGallery() {
                 <span className="polished-orb header-mark" aria-hidden />
                 Palmstone
               </Link>
-              <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
+              <div className="gallery-audio">
+                <MusicWaveToggle className="sound-wave-btn--gallery" />
+                <SfxToggle />
+              </div>
             </div>
-            <div className="gallery-audio">
-              <MusicWaveToggle className="sound-wave-btn--gallery" />
-              <SfxToggle />
+            <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
+            <div className="gallery-links">
               {favExperiences.length > 0 && (
                 <button
                   type="button"
@@ -209,6 +223,20 @@ export function PlaygroundGallery() {
                   <span>{favExperiences.length}</span>
                 </button>
               )}
+              <button
+                type="button"
+                className="favourites-link"
+                onClick={() => {
+                  playUiClick();
+                  setEarned(getAchievements());
+                  setOpen({ kind: "achievements" });
+                }}
+              >
+                Achievements
+                <span>
+                  {earned.length}/{ACHIEVEMENTS.length}
+                </span>
+              </button>
             </div>
           </header>
 
@@ -329,7 +357,41 @@ export function PlaygroundGallery() {
               </button>
             </div>
 
-            {open.kind === "premium" ? (
+            {open.kind === "achievements" ? (
+              <ul className="folder-sheet__list">
+                {ACHIEVEMENTS.map((item) => {
+                  const got = earned.includes(item.id);
+                  const body = (
+                    <>
+                      <span className={got ? "achievement-mark is-earned" : "achievement-mark"}>
+                        {got ? "✓" : ""}
+                      </span>
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
+                          {item.name}
+                        </span>
+                        <span className="mt-0.5 block text-sm text-[var(--mist)]">{item.detail}</span>
+                      </span>
+                    </>
+                  );
+                  return (
+                    <li key={item.id}>
+                      {item.experienceId ? (
+                        <Link
+                          href={`/playground/${item.experienceId}`}
+                          onClick={() => onExperienceNavClick()}
+                          className="folder-sheet__row"
+                        >
+                          {body}
+                        </Link>
+                      ) : (
+                        <div className="folder-sheet__row">{body}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : open.kind === "premium" ? (
               <ul className="folder-sheet__list">
                 {folderItems.map(({ folder, items }) => (
                   <li key={folder.id}>

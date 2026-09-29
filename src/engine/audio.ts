@@ -7,6 +7,7 @@ type BedStyle = "lattice" | "aurora" | "peace" | "song";
 export type SharedAudio = AudioBus & {
   unlockAndStartPeace: () => Promise<void>;
   uiSoft: (variant?: 0 | 1) => void;
+  rewardChime: () => void;
   setPeaceEnabled: (on: boolean) => void;
   setMusicMuted: (muted: boolean) => void;
   isMusicMuted: () => boolean;
@@ -1075,6 +1076,31 @@ export function getSharedAudio(): SharedAudio {
     octave.stop(t + 0.36);
   }
 
+  function rewardChime() {
+    if (muted) return;
+    const c = ensure();
+    if (!c) return;
+    const start = now();
+    const notes = [4, 7, 9];
+    notes.forEach((note, index) => {
+      const t = start + index * 0.09;
+      const osc = c.createOscillator();
+      osc.type = "sine";
+      const f0 = HARP[note] ?? 523;
+      osc.frequency.setValueAtTime(f0, t);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.16, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+      osc.connect(g);
+      const m = out();
+      if (!m) return;
+      g.connect(m);
+      osc.start(t);
+      osc.stop(t + 0.45);
+    });
+  }
+
   function lampToggle(on: boolean, intensity = 0.9) {
     if (muted) return;
     void ensureSamples();
@@ -1571,6 +1597,7 @@ export function getSharedAudio(): SharedAudio {
       if (peaceWanted && !experienceBedActive && !songPlaying) await startPeaceBed();
     },
     uiSoft,
+    rewardChime,
     setPeaceEnabled(on: boolean) {
       peaceWanted = on && !musicMuted;
       if (!on && bedStyle === "peace") stopBedInternal();

@@ -1,6 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 import { hslToRgb } from "@/engine/color";
 import { createHud } from "@/engine/hud";
+import { unlockAchievement } from "@/engine/achievements";
 import { gravityFromFeel } from "@/engine/storage";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
@@ -71,6 +72,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   });
 
   let drag: number | null = null;
+  let orbitDwell = 0;
   let px = 0;
   let py = 0;
   let throwVx = 0;
@@ -209,6 +211,13 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         b.trail.push({ x: b.x, y: b.y });
         if (b.trail.length > 8) b.trail.shift();
       }
+      const orbiting = beads.filter((b) => b.orbiting).length;
+      if (orbiting >= 10) unlockAchievement("orbit-crowd");
+      if (orbiting >= 18) unlockAchievement("orbit-dozen");
+      if (orbiting >= 1) orbitDwell += dt;
+      else orbitDwell = 0;
+      if (orbitDwell >= 90) unlockAchievement("orbit-dwell");
+      if (orbitDwell >= 180) unlockAchievement("orbit-watch");
 
       for (let i = 0; i < beads.length; i++) {
         for (let j = i + 1; j < beads.length; j++) {

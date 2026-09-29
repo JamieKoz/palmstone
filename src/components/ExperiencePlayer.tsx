@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { subscribeAchievements, syncLifetimeAchievements } from "@/engine/achievements";
 import { playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
 import { armPageRevealWipe } from "@/components/PageRevealWipe";
@@ -47,6 +48,33 @@ function CogIcon() {
         d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
       />
     </svg>
+  );
+}
+
+function AchievementToast() {
+  const [item, setItem] = useState<{ name: string; detail: string } | null>(null);
+
+  useEffect(() => {
+    return subscribeAchievements((achievement) => setItem(achievement));
+  }, []);
+
+  useEffect(() => {
+    if (!item) return;
+    const timer = window.setTimeout(() => setItem(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [item]);
+
+  if (!item) return null;
+  return (
+    <button
+      type="button"
+      className="achievement-toast"
+      onClick={() => setItem(null)}
+    >
+      <p className="achievement-toast__kicker">Achievement</p>
+      <p className="achievement-toast__name">{item.name}</p>
+      <p className="achievement-toast__detail">{item.detail}</p>
+    </button>
   );
 }
 
@@ -136,6 +164,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
       last = now;
       recordModalityPlay(modality, seconds);
       recordExperiencePlay(experienceId, seconds);
+      syncLifetimeAchievements();
     };
     const interval = window.setInterval(flush, 4000);
     const onPageHide = () => flush();
@@ -435,6 +464,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
                 onClick={() => {
                   playUiClick();
                   setFav(toggleFavourite(experienceId));
+                  syncLifetimeAchievements();
                 }}
               >
                 <span>Favourite</span>
@@ -456,6 +486,8 @@ export function ExperiencePlayer({ experienceId }: Props) {
           )}
         </div>
       </header>
+
+      <AchievementToast />
 
       {hintVisible && ready && !entering && !exiting && (
         <button

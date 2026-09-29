@@ -141,15 +141,17 @@ button {
 
 .gallery-audio {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
-  align-self: flex-start;
 }
 
-@media (min-width: 640px) {
-  .gallery-audio {
-    align-self: auto;
-  }
+.gallery-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .sfx-toggle {
@@ -389,6 +391,23 @@ button {
 .favourites-link:hover,
 .favourites-link:focus-visible {
   color: var(--ink);
+}
+
+.achievement-mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--fade) 70%, transparent);
+  color: var(--sand);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+}
+
+.achievement-mark.is-earned {
+  border-color: var(--sand);
+  background: color-mix(in oklab, var(--sand) 22%, transparent);
 }
 
 .folder-sheet__back {
@@ -1176,6 +1195,58 @@ button.folder-sheet__row {
   }
 }
 
+.achievement-toast {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 12;
+  width: min(18rem, calc(100% - 32px));
+  padding: 12px 14px;
+  border-radius: 16px;
+  text-align: center;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--sand) 45%, transparent),
+    0 16px 40px color-mix(in oklab, black 35%, transparent);
+  translate: -50% 0;
+  pointer-events: auto;
+  cursor: pointer;
+  animation: achievement-in 0.4s ease;
+}
+
+@keyframes achievement-in {
+  from {
+    opacity: 0;
+    translate: -50% 8px;
+  }
+  to {
+    opacity: 1;
+    translate: -50% 0;
+  }
+}
+
+.achievement-toast__kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sand);
+}
+
+.achievement-toast__name {
+  margin: 4px 0 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.25rem;
+}
+
+.achievement-toast__detail {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--mist);
+}
+
 .ios-haptic-surface {
   position: absolute;
   inset: 0;
@@ -1237,7 +1308,9 @@ button.folder-sheet__row {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: min(240px, 72vw);
+  width: min(280px, 78vw);
+  max-height: min(70vh, 520px);
+  overflow: auto;
   padding: 8px;
   border-radius: 18px;
   background: color-mix(in oklab, var(--bg) 88%, transparent);

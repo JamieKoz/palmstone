@@ -2,6 +2,7 @@ import { Application, Container } from "pixi.js";
 import { createAudioBus, getSharedAudio } from "./audio";
 import { attachDirectIosSurface, createHapticsBus } from "./haptics";
 import type { ExperienceHandle, ExperienceModule } from "./types";
+import { syncLifetimeAchievements } from "./achievements";
 import { getHapticsPref, getMuted, recordPointerBurst } from "./storage";
 
 export type EngineController = {
@@ -24,6 +25,7 @@ function attachPointerProbe(target: HTMLElement, experienceId: string) {
       holdMs: pending.holdMs,
       dragPx: pending.dragPx,
     });
+    syncLifetimeAchievements();
     pending.downs = 0;
     pending.holdMs = 0;
     pending.dragPx = 0;

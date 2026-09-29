@@ -83,6 +83,17 @@ export function getSessionCount(): number {
   return readJson<number>(SESSIONS_KEY, 0);
 }
 
+const ACH_KEY = "palmstone:achievements";
+
+export function getAchievements(): string[] {
+  const raw = readJson<string[]>(ACH_KEY, []);
+  return Array.isArray(raw) ? raw.filter((id) => typeof id === "string") : [];
+}
+
+export function setAchievements(ids: string[]) {
+  writeJson(ACH_KEY, ids);
+}
+
 /** Accumulate seconds played per modality (client-side habit signal). */
 export function recordModalityPlay(modality: string, seconds: number) {
   if (seconds < 0.5) return;
@@ -132,6 +143,19 @@ function getProfile(): Profile {
 
 function writeProfile(profile: Profile) {
   writeJson(PROFILE_KEY, profile);
+}
+
+export function experienceStatList(): ExperienceStats & { id: string } extends never
+  ? never
+  : { id: string; opens: number; seconds: number; pointerDowns: number; dragPx: number }[] {
+  const profile = getProfile();
+  return Object.entries(profile.experiences).map(([id, stats]) => ({
+    id,
+    opens: stats.opens,
+    seconds: stats.seconds,
+    pointerDowns: stats.pointerDowns,
+    dragPx: stats.dragPx,
+  }));
 }
 
 function touch(id: string): { profile: Profile; stats: ExperienceStats } {
