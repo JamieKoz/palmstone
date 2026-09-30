@@ -41,8 +41,8 @@ export interface AudioBus {
   bongo(freq: number, intensity?: number): void;
   /** Chunky keyboard bottom-out. */
   thock(intensity?: number, pitch?: number): void;
-  /** Recorded keyboard key down or release. */
-  keyStroke(phase: "down" | "up", intensity?: number, pitch?: number): void;
+  /** Recorded keyboard key down or release. `kit` defaults to the house thock. */
+  keyStroke(phase: "down" | "up", intensity?: number, pitch?: number, kit?: "thock" | "creamy"): void;
   /** Satisfying bubble-wrap membrane pop. */
   pop(intensity?: number, pitch?: number): void;
   /** Retractable pen: press-in vs spring-back click. */
@@ -119,7 +119,7 @@ export interface ExperienceHandle {
   destroy(): void;
 }
 
-/** `studio` is the Signature set. `field` is Premium, grouped into categories. */
+/** Metadata on each module. The playground tray groups experiences itself. */
 export type ExperienceCollection = "studio" | "field";
 
 export interface ExperienceMeta {
@@ -129,7 +129,6 @@ export interface ExperienceMeta {
   tagline: string;
   hint: string;
   accent: string;
-  /** Signature (`studio`) opens as a list. Premium (`field`) sits in categories. */
   collection: ExperienceCollection;
   /** Optional badge in gallery — e.g. WebGL */
   badge?: string;

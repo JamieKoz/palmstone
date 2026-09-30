@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AddToHome } from "@/components/AddToHome";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
 import { getPreferredModalities, getRecents, topAffinityIds } from "@/engine/storage";
@@ -81,6 +82,7 @@ export function LandingCTA() {
             <span aria-hidden>→</span>
           </Link>
         )}
+        <AddToHome />
       </div>
     </div>
   );

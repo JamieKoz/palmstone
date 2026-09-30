@@ -83,17 +83,6 @@ export function getSessionCount(): number {
   return readJson<number>(SESSIONS_KEY, 0);
 }
 
-const ACH_KEY = "palmstone:achievements";
-
-export function getAchievements(): string[] {
-  const raw = readJson<string[]>(ACH_KEY, []);
-  return Array.isArray(raw) ? raw.filter((id) => typeof id === "string") : [];
-}
-
-export function setAchievements(ids: string[]) {
-  writeJson(ACH_KEY, ids);
-}
-
 /** Accumulate seconds played per modality (client-side habit signal). */
 export function recordModalityPlay(modality: string, seconds: number) {
   if (seconds < 0.5) return;

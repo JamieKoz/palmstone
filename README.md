@@ -18,8 +18,8 @@ Mesh Lattice song search uses [Deezer’s free search API](https://developers.de
 ## What's shipping
 
 - Landing (brand + Enter / Continue)
-- Gallery with iOS-style category folders, favourites, continue strip
-- Fullscreen play with mute, haptics, favourite
+- A tray of stones: brush to look, press to settle. Continue, favourites, surprise
+- Fullscreen play with mute, haptics, favourite, copy link, session timer, zen
 - PixiJS experiences + **native WebGL2** audio-reactive experiences
 - Generative ambient beds (Web Audio analyser) — mute-safe visuals
 - Song search in Mesh Lattice (Deezer 30s previews)
@@ -27,27 +27,28 @@ Mesh Lattice song search uses [Deezer’s free search API](https://developers.de
 
 ### Experiences
 
-| Name | Modality |
-|------|----------|
-| Mesh Lattice | WebGL (audio mesh) |
-| Sand Tray | Granular |
-| Silk Fluid | Fluid |
-| Ripple Pool | Fluid |
-| Elastic Web | Elastic |
-| Magnetic Field | Force |
-| Gear Mesh | Mechanical |
-| Orbit Beads | Spatial |
-| Pulse Pads | Rhythm |
-| Stone Polish | Texture |
-| Slider Loom | Mechanical |
-| Pen Clicker | Click |
-| Light Switch | Toggle |
-| Keyboard Thock | Click |
-| Mouse Click | Click |
-| Big Button | Press |
-| Bubble Wrap | Pop |
-| Fidget Cube | Fidget |
-| Fidget Spinner | Fidget |
-| Zipper | Slide |
+| Name | Where it sits |
+|------|----------------|
+| Silk Fluid | Fields |
+| Sand Tray | Fields |
+| Ripple Pool | Fields |
+| Mesh Lattice | Fields |
+| Elastic Web | In motion |
+| Magnetic Field | In motion |
+| Gear Mesh | In motion |
+| Orbit Beads | In motion |
+| Slider Loom | In motion |
+| Stone Polish | In motion |
+| Pen Clicker | On the desk |
+| Light Switch | On the desk |
+| Lamp Toggle | On the desk |
+| Keyboard Thock | On the desk |
+| Mouse Click | On the desk |
+| Big Button | On the desk |
+| Bubble Wrap | On the desk |
+| Fidget Cube | On the desk |
+| Fidget Spinner | On the desk |
+| Zipper | On the desk |
+| Pulse Pads | On the desk |
 
 No accounts yet. No paywall. Sound and haptics are always free.

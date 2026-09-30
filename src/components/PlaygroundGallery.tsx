@@ -2,50 +2,43 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ACHIEVEMENTS, syncLifetimeAchievements } from "@/engine/achievements";
-import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
-import { MusicWaveToggle } from "@/components/MusicWaveToggle";
-import { getSharedAudio } from "@/engine/audio";
-import { getMuted, setMutedPref } from "@/engine/storage";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AddToHome } from "@/components/AddToHome";
 import { ExperienceThumb } from "@/components/ExperienceThumb";
+import { MusicWaveToggle } from "@/components/MusicWaveToggle";
 import { PageRevealWipe } from "@/components/PageRevealWipe";
-import {
-  experiencesInFolder,
-  getMeta,
-  PLAY_FOLDERS,
-  signatureExperiences,
-  type PlayFolder,
-} from "@/engine/catalog";
-import type { ExperienceId, ExperienceMeta } from "@/engine/types";
+import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
+import { getSharedAudio } from "@/engine/audio";
+import { TRAY_GROUPS, experiencesInGroup, getMeta, trayExperiences } from "@/engine/catalog";
+import { fireHaptic } from "@/engine/haptics";
 import {
   getFavourites,
-  getAchievements,
+  getHapticsPref,
+  getMuted,
   getPreferredModalities,
   getRecents,
-  sortByAffinity,
+  setMutedPref,
   toggleFavourite,
   topAffinityIds,
 } from "@/engine/storage";
+import type { ExperienceMeta } from "@/engine/types";
 
-type OpenFolder =
-  | { kind: "signature" }
-  | { kind: "premium" }
-  | { kind: "folder"; folder: PlayFolder }
-  | { kind: "favourites" }
-  | { kind: "achievements" }
-  | null;
+type Lean = { id: string; x: number; y: number };
 
 export function PlaygroundGallery() {
   const router = useRouter();
+  const trayRef = useRef<HTMLDivElement>(null);
+  const stonesRef = useRef(new Map<string, HTMLButtonElement>());
+  const lastStone = useRef<string | null>(null);
+  const pressId = useRef<string | null>(null);
+
   const [favs, setFavs] = useState<string[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
-  const [earned, setEarned] = useState<string[]>([]);
-  const [open, setOpen] = useState<OpenFolder>(null);
-  const [closing, setClosing] = useState(false);
-  const [panelKey, setPanelKey] = useState(0);
+  const [reduce, setReduce] = useState(false);
+  const [restId, setRestId] = useState<string | null>(null);
+  const [lean, setLean] = useState<Lean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,136 +47,103 @@ export function PlaygroundGallery() {
       setFavs(getFavourites());
       setRecents(getRecents());
       setPrefs(getPreferredModalities(2));
-      setEarned(getAchievements());
+      setReduce(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       setReady(true);
-      syncLifetimeAchievements();
     });
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduce(media.matches);
+    media.addEventListener("change", onChange);
     return () => {
       cancelled = true;
+      media.removeEventListener("change", onChange);
     };
   }, []);
 
-  const closeFolder = useCallback(() => {
-    if (!open || closing) return;
-    playUiClick();
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      setOpen(null);
-      return;
-    }
-    setClosing(true);
-  }, [open, closing]);
+  const groups = TRAY_GROUPS.map((group) => ({
+    group,
+    items: experiencesInGroup(group),
+  }));
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeFolder();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, closeFolder]);
+  const continueMeta = ready && recents[0] ? getMeta(recents[0]) : undefined;
+  const rest = restId ? getMeta(restId) : undefined;
 
-  const continueMeta = useMemo(() => {
-    if (!ready) return undefined;
-    const id = recents[0];
-    return id ? getMeta(id) : undefined;
-  }, [ready, recents]);
+  const loved = ready
+    ? topAffinityIds(2)
+        .map((id) => getMeta(id)?.name)
+        .filter((name): name is string => !!name)
+    : [];
+  const subtitle = !ready
+    ? "Brush a stone. Press to settle."
+    : loved.length === 1
+      ? `You keep coming back to ${loved[0]}.`
+      : loved.length > 1
+        ? `You keep coming back to ${loved[0]} and ${loved[1]}.`
+        : prefs.length > 0
+          ? `You lean toward ${prefs[0].toLowerCase()}.`
+          : "Brush a stone. Press to settle.";
 
-  const favExperiences = useMemo(
-    () => favs.map((id) => getMeta(id)).filter(Boolean) as ExperienceMeta[],
-    [favs],
+  const settle = useCallback(
+    (exp: ExperienceMeta) => {
+      onExperienceNavClick();
+      router.push(`/playground/${exp.id}`);
+    },
+    [router],
   );
 
-  const signature = useMemo(() => signatureExperiences(), []);
-
-  const forYou = useMemo(() => {
-    if (!ready) return [];
-    // Favourites and recents are the signal that the stored profile changed.
-    void favs;
-    void recents;
-    return topAffinityIds(4)
-      .map((id) => getMeta(id))
-      .filter((e): e is ExperienceMeta => !!e);
-  }, [ready, favs, recents]);
-
-  const folderItems = useMemo(() => {
-    void favs;
-    void recents;
-    return PLAY_FOLDERS.map((folder) => ({
-      folder,
-      items: ready ? sortByAffinity(experiencesInFolder(folder)) : experiencesInFolder(folder),
-    })).filter((f) => f.items.length > 0);
-  }, [ready, favs, recents]);
-
-  const openItems: ExperienceMeta[] =
-    open?.kind === "favourites"
-      ? favExperiences
-      : open?.kind === "signature"
-        ? sortByAffinity(signature)
-        : open?.kind === "folder"
-          ? sortByAffinity(experiencesInFolder(open.folder))
-          : [];
-
-  const openTitle =
-    open?.kind === "favourites"
-      ? "Favourites"
-      : open?.kind === "signature"
-        ? "Signature"
-        : open?.kind === "premium"
-          ? "Premium"
-          : open?.kind === "folder"
-            ? open.folder.name
-            : open?.kind === "achievements"
-              ? "Achievements"
-              : "";
-
-  const openKicker =
-    open?.kind === "favourites"
-      ? "Kept close"
-      : open?.kind === "signature"
-        ? "Play now"
-        : open?.kind === "premium"
-          ? "Categories"
-          : open?.kind === "folder"
-            ? "Premium"
-            : open?.kind === "achievements"
-              ? `${earned.length} of ${ACHIEVEMENTS.length}`
-              : "";
-
-  const openAccent =
-    open?.kind === "favourites"
-      ? "var(--sand)"
-      : open?.kind === "signature"
-        ? "var(--jade)"
-        : open?.kind === "premium"
-          ? "var(--sand)"
-          : open?.kind === "folder"
-            ? open.folder.accent
-            : open?.kind === "achievements"
-              ? "var(--sand)"
-              : "var(--jade)";
-
-  const loved = forYou.map((e) => e.name);
-  const subtitle = !ready
-    ? "Signature is ready. Premium goes deeper."
-    : loved.length > 0
-      ? loved.length === 1
-        ? `You keep coming back to ${loved[0]}.`
-        : `You keep coming back to ${loved[0]} and ${loved[1]}.`
-      : prefs.length > 0
-        ? `You lean ${prefs[0].toLowerCase()}. Signature is ready when you are.`
-        : "Signature is ready. Premium goes deeper.";
-
   const surprise = useCallback(() => {
-    const pool = signature.filter((exp) => exp.id !== continueMeta?.id);
-    const choices = pool.length > 0 ? pool : signature;
+    const all = trayExperiences();
+    const pool = all.filter((exp) => exp.id !== continueMeta?.id);
+    const choices = pool.length > 0 ? pool : all;
     const pick = choices[Math.floor(Math.random() * choices.length)];
     if (!pick) return;
-    onExperienceNavClick();
-    router.push(`/playground/${pick.id}`);
-  }, [signature, continueMeta, router]);
+    settle(pick);
+  }, [continueMeta, settle]);
+
+  const tick = useCallback(() => {
+    if (reduce) return;
+    const audio = getSharedAudio();
+    void audio.resume().then(() => audio.click(0.22, 1.08));
+    if (getHapticsPref()) fireHaptic(8);
+  }, [reduce]);
+
+  const lookAt = useCallback(
+    (clientX: number, clientY: number) => {
+      let best: { id: string; dx: number; dy: number; reach: number; dist: number } | null = null;
+      for (const [id, el] of stonesRef.current) {
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = clientX - cx;
+        const dy = clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        const reach = Math.max(rect.width, rect.height) * 0.78;
+        if (dist > reach) continue;
+        if (!best || dist < best.dist) best = { id, dx, dy, reach, dist };
+      }
+
+      if (!best) {
+        lastStone.current = null;
+        setRestId(null);
+        setLean(null);
+        return;
+      }
+
+      if (lastStone.current && lastStone.current !== best.id) tick();
+      lastStone.current = best.id;
+      setRestId(best.id);
+      if (reduce) {
+        setLean(null);
+        return;
+      }
+      const pull = 7;
+      setLean({
+        id: best.id,
+        x: (best.dx / best.reach) * pull,
+        y: (best.dy / best.reach) * pull,
+      });
+    },
+    [reduce, tick],
+  );
 
   return (
     <>
@@ -192,8 +152,8 @@ export function PlaygroundGallery() {
         <div className="atmosphere" aria-hidden />
         <div className="grain-overlay" aria-hidden />
 
-        <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-[max(4rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 sm:pt-12">
-          <header className="mb-8 sm:mb-10">
+        <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-[max(5.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 sm:pt-12">
+          <header className="mb-6 sm:mb-8">
             <div className="flex items-start justify-between gap-3">
               <Link
                 href="/"
@@ -210,261 +170,100 @@ export function PlaygroundGallery() {
             </div>
             <p className="mt-2 max-w-md text-[var(--mist)]">{subtitle}</p>
             <div className="gallery-links">
-              {favExperiences.length > 0 && (
-                <button
-                  type="button"
+              {continueMeta && (
+                <Link
+                  href={`/playground/${continueMeta.id}`}
+                  onClick={() => onExperienceNavClick()}
                   className="favourites-link"
-                  onClick={() => {
-                    playUiClick();
-                    setOpen({ kind: "favourites" });
-                  }}
                 >
-                  Favourites
-                  <span>{favExperiences.length}</span>
-                </button>
+                  Continue {continueMeta.name}
+                </Link>
               )}
-              <button
-                type="button"
-                className="favourites-link"
-                onClick={() => {
-                  playUiClick();
-                  setEarned(getAchievements());
-                  setOpen({ kind: "achievements" });
-                }}
-              >
-                Achievements
-                <span>
-                  {earned.length}/{ACHIEVEMENTS.length}
-                </span>
+              <button type="button" className="favourites-link" onClick={surprise}>
+                Surprise me
               </button>
+              <AddToHome />
             </div>
           </header>
 
-          <div className="quick-row">
-            {continueMeta && (
-              <Link
-                href={`/playground/${continueMeta.id}`}
-                onClick={() => onExperienceNavClick()}
-                className="continue-card"
-                style={{ borderLeftColor: continueMeta.accent }}
-              >
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">Continue</p>
-                  <p className="mt-1 truncate font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">
-                    {continueMeta.name}
-                  </p>
-                </div>
-                <span className="text-[var(--jade)]">Play →</span>
-              </Link>
-            )}
-            <button type="button" className="surprise-btn" onClick={surprise}>
-              Surprise me
-            </button>
-          </div>
-
-          <div className="collection-row">
-            <button
-              type="button"
-              className="collection-box"
-              onClick={() => {
-                playUiClick();
-                setOpen({ kind: "signature" });
-              }}
-            >
-              <FolderPreview
-                ids={signature.slice(0, 4).map((e) => e.id)}
-                tint="color-mix(in oklab, var(--jade) 32%, var(--panel))"
-              />
-              <span className="collection-box__copy">
-                <span className="collection-box__name">Signature</span>
-                <span className="collection-box__blurb">
-                  {signature.length} experiences, ready to play.
-                </span>
-              </span>
-            </button>
-
-            <button
-              type="button"
-              className="collection-box collection-box--premium"
-              onClick={() => {
-                playUiClick();
-                setOpen({ kind: "premium" });
-              }}
-            >
-              <FolderPreview
-                ids={folderCoverIds(folderItems)}
-                tint="color-mix(in oklab, var(--sand) 34%, var(--panel))"
-              />
-              <span className="collection-box__copy">
-                <span className="collection-box__name">Premium</span>
-                <span className="collection-box__blurb">Categories inside.</span>
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {open && (
-        <div
-          className={closing ? "folder-sheet folder-sheet--closing" : "folder-sheet"}
-          role="dialog"
-          aria-modal="true"
-          aria-label={openTitle}
-        >
-          <button
-            type="button"
-            className="folder-sheet__backdrop"
-            aria-label="Close folder"
-            onClick={closeFolder}
-          />
           <div
-            key={panelKey}
-            className="folder-sheet__panel"
-            style={{ ["--folder-accent" as string]: openAccent }}
-            onAnimationEnd={(e) => {
-              if (!closing || e.target !== e.currentTarget) return;
-              if (e.animationName !== "folder-shrink") return;
-              setClosing(false);
-              setOpen(null);
+            ref={trayRef}
+            className={reduce ? "tray is-still" : "tray"}
+            onPointerMove={(e) => {
+              lookAt(e.clientX, e.clientY);
+            }}
+            onPointerLeave={() => {
+              lastStone.current = null;
+              setRestId(null);
+              setLean(null);
             }}
           >
-            <div className="folder-sheet__head">
-              <div className="min-w-0 flex-1">
-                {open.kind === "folder" ? (
-                  <button
-                    type="button"
-                    className="folder-sheet__back"
-                    onClick={() => {
-                      playUiClick();
-                      setOpen({ kind: "premium" });
-                    }}
-                  >
-                    ← Premium
-                  </button>
-                ) : (
-                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--fade)]">{openKicker}</p>
-                )}
-                <h2 className="mt-1 font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">
-                  {openTitle}
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="folder-sheet__close"
-                onClick={closeFolder}
-              >
-                Close
-              </button>
-            </div>
-
-            {open.kind === "achievements" ? (
-              <ul className="folder-sheet__list">
-                {ACHIEVEMENTS.map((item) => {
-                  const got = earned.includes(item.id);
-                  const body = (
-                    <>
-                      <span className={got ? "achievement-mark is-earned" : "achievement-mark"}>
-                        {got ? "✓" : ""}
-                      </span>
-                      <span className="min-w-0 flex-1 text-left">
-                        <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
-                          {item.name}
+            {groups.map(({ group, items }) => (
+              <section key={group.id} className="tray-group" aria-label={group.name}>
+                <h2 className="tray-group__name">{group.name}</h2>
+                <div className="tray-group__stones">
+                  {items.map((exp) => {
+                    const kept = favs.includes(exp.id);
+                    const shift = !reduce && lean?.id === exp.id ? lean : null;
+                    return (
+                      <button
+                        key={exp.id}
+                        type="button"
+                        ref={(node) => {
+                          if (node) stonesRef.current.set(exp.id, node);
+                          else stonesRef.current.delete(exp.id);
+                        }}
+                        className={["tray-stone", kept ? "is-kept" : "", restId === exp.id ? "is-rest" : ""]
+                          .filter(Boolean)
+                          .join(" ")}
+                        style={
+                          shift
+                            ? { transform: `translate(${shift.x.toFixed(2)}px, ${shift.y.toFixed(2)}px)` }
+                            : undefined
+                        }
+                        aria-label={exp.name}
+                        onPointerDown={() => {
+                          pressId.current = exp.id;
+                        }}
+                        onClick={() => {
+                          const started = pressId.current;
+                          pressId.current = null;
+                          if (started && started !== exp.id) return;
+                          settle(exp);
+                        }}
+                      >
+                        <span className="tray-stone__face">
+                          <ExperienceThumb id={exp.id} />
                         </span>
-                        <span className="mt-0.5 block text-sm text-[var(--mist)]">{item.detail}</span>
-                      </span>
-                    </>
-                  );
-                  return (
-                    <li key={item.id}>
-                      {item.experienceId ? (
-                        <Link
-                          href={`/playground/${item.experienceId}`}
-                          onClick={() => onExperienceNavClick()}
-                          className="folder-sheet__row"
-                        >
-                          {body}
-                        </Link>
-                      ) : (
-                        <div className="folder-sheet__row">{body}</div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : open.kind === "premium" ? (
-              <ul className="folder-sheet__list">
-                {folderItems.map(({ folder, items }) => (
-                  <li key={folder.id}>
-                    <button
-                      type="button"
-                      className="folder-sheet__row"
-                      onClick={() => {
-                        playUiClick();
-                        setPanelKey((key) => key + 1);
-                        setOpen({ kind: "folder", folder });
-                      }}
-                    >
-                      <FolderPreview
-                        ids={items.slice(0, 4).map((e) => e.id)}
-                        tint={`color-mix(in oklab, ${folder.accent} 28%, var(--panel))`}
-                        compact
-                      />
-                      <span className="min-w-0 flex-1 text-left">
-                        <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
-                          {folder.name}
-                        </span>
-                        <span className="mt-0.5 block truncate text-sm text-[var(--mist)]">
-                          {folder.blurb} · {items.length}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-            <ul className="folder-sheet__list">
-              {openItems.map((exp) => {
-                const starred = favs.includes(exp.id);
-                return (
-                  <li key={exp.id} className="group relative">
-                    <Link
-                      href={`/playground/${exp.id}`}
-                      onClick={() => onExperienceNavClick()}
-                      className="folder-sheet__row"
-                    >
-                      <ExperienceThumb id={exp.id} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
-                          {exp.name}
-                        </span>
-                        <span className="mt-0.5 block truncate text-sm text-[var(--mist)]">
-                          {shortAction(exp.tagline)}
-                        </span>
-                      </span>
-                    </Link>
-                    <button
-                      type="button"
-                      className="folder-sheet__fav"
-                      style={{ color: starred ? "var(--sand)" : "var(--fade)" }}
-                      aria-label={starred ? "Remove favourite" : "Favourite"}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        playUiClick();
-                        toggleFavourite(exp.id);
-                        setFavs(getFavourites());
-                      }}
-                    >
-                      {starred ? "★" : "☆"}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            )}
+                        <span className="tray-stone__name">{exp.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         </div>
-      )}
+
+        {rest && (
+          <div className="tray-caption" aria-live="polite">
+            <p className="tray-caption__name">{rest.name}</p>
+            <p className="tray-caption__line">{rest.tagline}</p>
+            <button
+              type="button"
+              className="tray-caption__keep"
+              aria-pressed={favs.includes(rest.id)}
+              onClick={() => {
+                playUiClick();
+                toggleFavourite(rest.id);
+                setFavs(getFavourites());
+              }}
+            >
+              {favs.includes(rest.id) ? "Kept" : "Keep"}
+            </button>
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -499,55 +298,5 @@ function SfxToggle() {
     >
       SFX
     </button>
-  );
-}
-
-/** The short action before the dash, which is enough to recognise the toy. */
-function shortAction(tagline: string) {
-  const head = tagline.split("—")[0]?.trim() || tagline;
-  if (head.length < tagline.trim().length) return head.replace(/\.$/, "");
-  const sentence = head.split(".")[0]?.trim() || head;
-  const words = sentence.split(/\s+/);
-  return words.length <= 4 ? sentence : words.slice(0, 3).join(" ");
-}
-
-function folderCoverIds(groups: { items: ExperienceMeta[] }[]): ExperienceId[] {
-  const picked: ExperienceMeta[] = [];
-  const seen = new Set<string>();
-  const take = (item: ExperienceMeta | undefined) => {
-    if (!item || seen.has(item.id) || picked.length >= 4) return;
-    seen.add(item.id);
-    picked.push(item);
-  };
-  for (const group of groups) take(group.items[0]);
-  for (const group of groups) {
-    for (const item of group.items) take(item);
-  }
-  return picked.map((item) => item.id);
-}
-
-function FolderPreview({
-  ids,
-  tint,
-  compact = false,
-}: {
-  ids: ExperienceId[];
-  tint: string;
-  compact?: boolean;
-}) {
-  const cells = [0, 1, 2, 3].map((i) => ids[i]);
-  return (
-    <div
-      className={compact ? "folder-preview folder-preview--mini" : "folder-preview"}
-      style={{ background: tint }}
-    >
-      {cells.map((id, i) =>
-        id ? (
-          <ExperienceThumb key={id} id={id} />
-        ) : (
-          <span key={i} className="folder-preview__cell" />
-        ),
-      )}
-    </div>
   );
 }

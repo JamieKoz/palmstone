@@ -13,17 +13,45 @@ const figtree = Figtree({
   subsets: ["latin"],
 });
 
+const siteOrigin = "https://jamiekoz.github.io";
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const shareImage = `${basePath}/og.png`;
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteOrigin),
   title: "Palmstone — sensory playground",
   description:
     "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
   applicationName: "Palmstone",
+  appleWebApp: {
+    capable: true,
+    title: "Palmstone",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "Palmstone — sensory playground",
+    description:
+      "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
+    images: [shareImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Palmstone — sensory playground",
+    description:
+      "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
+    images: [shareImage],
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#0f1412",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

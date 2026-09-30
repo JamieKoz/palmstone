@@ -12,9 +12,14 @@ export async function generateMetadata({
 }) {
   const { id } = await params;
   const exp = CATALOG.find((e) => e.id === id);
+  const title = exp ? `${exp.name} — Palmstone` : "Play — Palmstone";
+  const description = exp?.tagline ?? "Play a Palmstone experience.";
+  const image = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/og.png`;
   return {
-    title: exp ? `${exp.name} — Palmstone` : "Play — Palmstone",
-    description: exp?.tagline ?? "Play a Palmstone experience.",
+    title,
+    description,
+    openGraph: { title, description, images: [image] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 

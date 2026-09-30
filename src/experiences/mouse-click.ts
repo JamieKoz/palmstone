@@ -1,4 +1,3 @@
-import { countToward, unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -40,12 +39,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     return localX < 0 ? "left" : "right";
   };
 
-  const usedButtons = new Set<"left" | "right" | "wheel">();
-
   const fire = (which: "left" | "right" | "wheel") => {
-    usedButtons.add(which);
-    if (usedButtons.size >= 3) unlockAchievement("mouse-all");
-    countToward("mouse-clicks", [{ id: "mouse-many", goal: 40 }]);
     if (which === "left") {
       leftPress = 1;
       audio.mouseClick(0.9, 0.95);

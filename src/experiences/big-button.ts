@@ -1,4 +1,3 @@
-import { countToward } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -37,10 +36,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     bloom = 1;
     audio.buttonPress("down", 0.95);
     haptics.pattern([0, 22, 40, 12]);
-    countToward("big-presses", [
-      { id: "button-dozen", goal: 40 },
-      { id: "button-hundred", goal: 100 },
-    ]);
   };
   const onUp = () => {
     if (!held) return;

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { subscribeAchievements, syncLifetimeAchievements } from "@/engine/achievements";
 import { playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
 import { armPageRevealWipe } from "@/components/PageRevealWipe";
@@ -51,33 +50,6 @@ function CogIcon() {
   );
 }
 
-function AchievementToast() {
-  const [item, setItem] = useState<{ name: string; detail: string } | null>(null);
-
-  useEffect(() => {
-    return subscribeAchievements((achievement) => setItem(achievement));
-  }, []);
-
-  useEffect(() => {
-    if (!item) return;
-    const timer = window.setTimeout(() => setItem(null), 4200);
-    return () => window.clearTimeout(timer);
-  }, [item]);
-
-  if (!item) return null;
-  return (
-    <button
-      type="button"
-      className="achievement-toast"
-      onClick={() => setItem(null)}
-    >
-      <p className="achievement-toast__kicker">Achievement</p>
-      <p className="achievement-toast__name">{item.name}</p>
-      <p className="achievement-toast__detail">{item.detail}</p>
-    </button>
-  );
-}
-
 function formatRemain(ms: number) {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const minutes = Math.floor(total / 60);
@@ -102,6 +74,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
   const [timerEndsAt, setTimerEndsAt] = useState<number | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [timerDone, setTimerDone] = useState(false);
+  const [copied, setCopied] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   const meta = getMeta(experienceId);
@@ -164,7 +137,6 @@ export function ExperiencePlayer({ experienceId }: Props) {
       last = now;
       recordModalityPlay(modality, seconds);
       recordExperiencePlay(experienceId, seconds);
-      syncLifetimeAchievements();
     };
     const interval = window.setInterval(flush, 4000);
     const onPageHide = () => flush();
@@ -326,7 +298,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
 
   return (
     <div
-      className={["experience-stage relative h-dvh w-full overflow-hidden bg-[var(--bg)]", zen ? "is-zen" : ""]
+      className={["experience-stage fixed inset-0 h-dvh w-full overflow-hidden bg-[var(--bg)]", zen ? "is-zen" : ""]
         .filter(Boolean)
         .join(" ")}
     >
@@ -464,11 +436,26 @@ export function ExperiencePlayer({ experienceId }: Props) {
                 onClick={() => {
                   playUiClick();
                   setFav(toggleFavourite(experienceId));
-                  syncLifetimeAchievements();
                 }}
               >
                 <span>Favourite</span>
                 <span style={{ color: fav ? "var(--sand)" : "var(--fade)" }}>{fav ? "★" : "☆"}</span>
+              </button>
+              <button
+                type="button"
+                className="experience-settings__row"
+                onClick={() => {
+                  playUiClick();
+                  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+                  const url = `${window.location.origin}${base}/playground/${experienceId}/`;
+                  void navigator.clipboard.writeText(url).then(() => {
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1600);
+                  });
+                }}
+              >
+                <span>Copy link</span>
+                <span>{copied ? "Copied" : "Copy"}</span>
               </button>
               <button
                 type="button"
@@ -486,8 +473,6 @@ export function ExperiencePlayer({ experienceId }: Props) {
           )}
         </div>
       </header>
-
-      <AchievementToast />
 
       {hintVisible && ready && !entering && !exiting && (
         <button

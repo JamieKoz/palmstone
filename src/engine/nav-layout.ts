@@ -1,4 +1,4 @@
-import { PLAY_FOLDERS, experiencesInFolder, studioExperiences } from "@/engine/catalog";
+import { TRAY_GROUPS, experiencesInGroup } from "@/engine/catalog";
 import type { ExperienceMeta } from "@/engine/types";
 
 /** Vertical field of view shared with the picker camera. */
@@ -8,9 +8,8 @@ export const NAV_STAND = 3.2;
 
 export type NavAction =
   | { type: "foyer" }
-  | { type: "studio" }
+  | { type: "group"; groupId: string }
   | { type: "favourites" }
-  | { type: "folder"; folderId: string }
   | { type: "experience"; id: string };
 
 export type NavPanelSpec = {
@@ -27,9 +26,8 @@ export type NavPanelSpec = {
 
 export type NavPlace =
   | { kind: "foyer" }
-  | { kind: "studio" }
-  | { kind: "favourites" }
-  | { kind: "folder"; folderId: string };
+  | { kind: "group"; groupId: string }
+  | { kind: "favourites" };
 
 type Slot = {
   key: string;
@@ -60,25 +58,14 @@ export function layoutPanels(
 }
 
 function layoutFoyer(aspect: number, hasFavourites: boolean): NavPanelSpec[] {
-  const slots: Slot[] = [
-    {
-      key: "studio",
-      title: "Signature",
-      subtitle: "Open and play",
-      kicker: "Enter",
-      accent: "#7f9e88",
-      action: { type: "studio" },
-      emphasis: true,
-    },
-    ...PLAY_FOLDERS.map((folder) => ({
-      key: `folder:${folder.id}`,
-      title: folder.name,
-      subtitle: folder.blurb,
-      kicker: "Folder",
-      accent: folder.accent,
-      action: { type: "folder", folderId: folder.id } as NavAction,
-    })),
-  ];
+  const slots: Slot[] = TRAY_GROUPS.map((group) => ({
+    key: `group:${group.id}`,
+    title: group.name,
+    subtitle: `${group.ids.length} stones`,
+    kicker: "Tray",
+    accent: "#7f9e88",
+    action: { type: "group", groupId: group.id } as NavAction,
+  }));
   if (hasFavourites) {
     slots.push({
       key: "favourites",
@@ -98,7 +85,7 @@ function layoutRoom(aspect: number, items: ExperienceMeta[]): NavPanelSpec[] {
     key: exp.id,
     title: exp.name,
     subtitle: exp.tagline,
-    kicker: exp.collection === "studio" ? "Signature" : exp.modality,
+    kicker: exp.modality,
     accent: exp.accent,
     action: { type: "experience", id: exp.id },
   }));
@@ -158,20 +145,18 @@ export function roomItemsFor(
   favourites: ExperienceMeta[],
   ordered: (items: ExperienceMeta[]) => ExperienceMeta[],
 ): ExperienceMeta[] {
-  if (place.kind === "studio") return ordered(studioExperiences());
   if (place.kind === "favourites") return ordered(favourites);
-  if (place.kind === "folder") {
-    const folder = PLAY_FOLDERS.find((f) => f.id === place.folderId);
-    return folder ? ordered(experiencesInFolder(folder)) : [];
+  if (place.kind === "group") {
+    const group = TRAY_GROUPS.find((item) => item.id === place.groupId);
+    return group ? ordered(experiencesInGroup(group)) : [];
   }
   return [];
 }
 
 export function placeLabel(place: NavPlace): string {
-  if (place.kind === "studio") return "Signature";
   if (place.kind === "favourites") return "Favourites";
-  if (place.kind === "folder") {
-    return PLAY_FOLDERS.find((f) => f.id === place.folderId)?.name ?? "Folder";
+  if (place.kind === "group") {
+    return TRAY_GROUPS.find((item) => item.id === place.groupId)?.name ?? "Tray";
   }
   return "Playground";
 }

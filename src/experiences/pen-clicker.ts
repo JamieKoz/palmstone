@@ -1,4 +1,3 @@
-import { countToward, unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -58,18 +57,9 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     tipBloom = 1;
     audio.penClick("up", 0.85);
     haptics.pattern([0, 14, 28, 8]);
-    clicks += 1;
-    if (clicks >= 40) unlockAchievement("pen-habit");
-    if (clicks >= 100) unlockAchievement("pen-session");
-    countToward("pen-clicks", [
-      { id: "pen-fifty", goal: 200 },
-      { id: "pen-century", goal: 500 },
-      { id: "pen-thousand", goal: 1000 },
-    ]);
   };
 
   let clickRate = 22;
-  let clicks = 0;
   const hud = createHud(ctx.host);
   hud.slider("Click", 8, 40, clickRate, (v) => {
     clickRate = v;

@@ -90,6 +90,8 @@ export function getSharedAudio(): SharedAudio {
     | "keyboard"
     | "keyDown"
     | "keyUp"
+    | "creamyKeyDown"
+    | "creamyKeyUp"
     | "penDown"
     | "penUp"
     | "lightSwitch"
@@ -111,6 +113,8 @@ export function getSharedAudio(): SharedAudio {
     keyboard: "keyboard-click.mp3",
     keyDown: "keyboard-down-press.wav",
     keyUp: "keyboard-release.wav",
+    creamyKeyDown: "creamy-keyboard-press-down.wav",
+    creamyKeyUp: "creamy-keyboard-release.wav",
     penDown: "pen-down-click.wav",
     penUp: "pen-release.wav",
     lightSwitch: "light-switch.mp3",
@@ -708,7 +712,12 @@ export function getSharedAudio(): SharedAudio {
     osc.stop(t + 0.16);
   }
 
-  function keyStroke(phase: "down" | "up", intensity = 0.85, pitch = 1) {
+  function keyStroke(
+    phase: "down" | "up",
+    intensity = 0.85,
+    pitch = 1,
+    kit: "thock" | "creamy" = "thock",
+  ) {
     if (muted) return;
     const t = now();
     if (phase === "down") {
@@ -719,7 +728,14 @@ export function getSharedAudio(): SharedAudio {
       lastKeyUp = t;
     }
     void ensureSamples();
-    const id = phase === "down" ? "keyDown" : "keyUp";
+    const id =
+      kit === "creamy"
+        ? phase === "down"
+          ? "creamyKeyDown"
+          : "creamyKeyUp"
+        : phase === "down"
+          ? "keyDown"
+          : "keyUp";
     if (
       playSample(id, {
         gain: (phase === "down" ? 1.05 : 0.92) * intensity,

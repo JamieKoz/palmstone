@@ -1,4 +1,3 @@
-import { unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -16,8 +15,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let open = 0.35; // 0 closed (bottom), 1 open (top)
   let target = 0.35;
   let dragging = false;
-  let dragStart = 0.35;
-  let fullZips = 0;
   let lastOpen = 0.35;
   let toothPhase = 0;
 
@@ -43,7 +40,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     void audio.resume();
     if (!hit(e.clientX, e.clientY)) return;
     dragging = true;
-    dragStart = open;
     lastOpen = open;
     haptics.tap(8);
   };
@@ -53,15 +49,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     target = Math.max(0, Math.min(1, (t.bottom - e.clientY) / t.len));
   };
   const onUp = () => {
-    if (dragging) {
-      const span = Math.abs(open - dragStart);
-      if (span >= 0.82 && (dragStart < 0.14 || dragStart > 0.86)) {
-        unlockAchievement("zipper-run");
-        fullZips += 1;
-        if (fullZips >= 6) unlockAchievement("zipper-twice");
-        if (fullZips >= 12) unlockAchievement("zipper-dozen");
-      }
-    }
     dragging = false;
   };
 

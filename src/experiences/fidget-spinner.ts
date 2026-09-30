@@ -1,5 +1,4 @@
 import { Container, Graphics } from "pixi.js";
-import { unlockAchievement } from "@/engine/achievements";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
@@ -32,7 +31,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     if (Math.hypot(dx, dy) > radius() * 1.35) return;
     dragging = true;
     held = true;
-    coastWatch = null;
     lastA = Math.atan2(dy, dx);
     lastT = performance.now();
     omega *= 0.3;
@@ -57,13 +55,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     if (!dragging) return;
     dragging = false;
     held = false;
-    if (Math.abs(omega) > 4) {
-      coastWatch = performance.now();
-      flicks += 1;
-      if (flicks >= 25) unlockAchievement("spinner-flicks");
-      if (flicks >= 60) unlockAchievement("spinner-storm");
-    }
-    // Flick boost
     if (Math.abs(omega) > 2) {
       audio.whoosh(Math.min(1, Math.abs(omega) / 25));
       haptics.pattern([0, 10]);
@@ -71,8 +62,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   };
 
   let coast = 0.55;
-  let coastWatch: number | null = null;
-  let flicks = 0;
   const hud = createHud(ctx.host);
   hud.slider("Coast", 0.15, 1.4, coast, (v) => {
     coast = 1.55 - v;
@@ -91,18 +80,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         omega *= Math.exp(-dt * coast);
         if (Math.abs(omega) < 0.15) omega = 0;
         angle += omega * dt;
-        if (coastWatch != null) {
-          if (Math.abs(omega) < 1.2) coastWatch = null;
-          else {
-            const elapsed = performance.now() - coastWatch;
-            if (elapsed >= 20000) unlockAchievement("spinner-coast");
-            if (elapsed >= 45000) unlockAchievement("spinner-fifteen");
-            if (elapsed >= 90000) {
-              unlockAchievement("spinner-minute");
-              coastWatch = null;
-            }
-          }
-        }
       }
 
       clickPhase += Math.abs(omega) * dt;

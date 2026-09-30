@@ -1,4 +1,3 @@
-import { unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics, Text } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -209,20 +208,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let downX = 0;
   let downY = 0;
 
-  const seen = new Set<number>();
-  let plays = 0;
   let poseKey: string | null = null;
   let greeted = false;
-
-  const play = () => {
-    plays += 1;
-    if (plays >= 40) unlockAchievement("cube-fidget");
-  };
-
-  const noteFace = (id: number) => {
-    seen.add(id);
-    if (seen.size >= 6) unlockAchievement("cube-tour");
-  };
 
   const view = () => {
     const sc = Math.min(w, h) * 0.188 * cubeScale;
@@ -346,7 +333,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
           press[hit.index] = 1;
           audio.click(hit.index === 0 ? 0.78 : 0.55, 0.92 + hit.index * 0.07);
           haptics.tap(hit.index === 0 ? 14 : 9);
-          play();
         } else if (hit.kind === "stone") {
           stoneU = uv!.u;
           stoneV = uv!.v;
@@ -398,7 +384,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         audio.switchClick(switchOn, 0.8);
         haptics.pattern([0, 12]);
         flash = 0.55;
-        play();
       }
     } else if (mode.kind === "dial") {
       const a = Math.atan2(uv.v, uv.u);
@@ -455,17 +440,13 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       audio.switchClick(switchOn, 0.8);
       haptics.pattern([0, 12]);
       flash = 0.55;
-      play();
     } else if (mode.kind === "stick") {
       if (Math.hypot(stickTX, stickTY) > 0.35) {
         audio.click(0.3, 1.2);
         haptics.tap(8);
-        play();
       }
       stickTX = 0;
       stickTY = 0;
-    } else if (mode.kind === "stone") {
-      if (stoneGlow > 0.35) play();
     } else if (mode.kind === "button") {
       flash = 0.35;
     }
@@ -563,9 +544,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         audio.click(0.34, 0.96);
         haptics.tap(7);
         flash = 0.8;
-        const cam = view();
-        noteFace(frontInfo(cam.rot).id);
-        play();
       }
 
       switchT += ((switchOn ? 1 : 0) - switchT) * Math.min(1, dt * 16);
@@ -583,7 +561,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         if (step !== dialStep && (mode.kind === "dial" || Math.abs(dialVel) > 0.25)) {
           audio.click(0.2, 1.18);
           haptics.tap(4);
-          play();
         }
         dialStep = step;
       }
@@ -600,7 +577,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
           if (Math.abs(step - gearStep) < 6) {
             audio.click(0.16, 1.32);
             if (step % 2 === 0) haptics.tap(3);
-            if (step % 4 === 0) play();
           }
         }
         gearStep = step;
@@ -618,7 +594,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         greeted = true;
         audio.click(0.22, 0.9);
         haptics.tap(6);
-        noteFace(front.id);
       }
 
       g.clear();

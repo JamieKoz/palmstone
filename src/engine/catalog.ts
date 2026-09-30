@@ -208,62 +208,54 @@ export function isExperienceId(id: string): id is ExperienceId {
 
 export const MODALITIES = Array.from(new Set(CATALOG.map((e) => e.modality)));
 
-/** Premium categories. Signature stays a flat list, not a folder. */
-export type PlayFolder = {
+/** Fixed tray clusters. Order is a place to learn, not a ranking. */
+export type TrayGroup = {
   id: string;
   name: string;
-  blurb: string;
-  accent: string;
-  modalities: string[];
+  ids: ExperienceId[];
 };
 
-export const PLAY_FOLDERS: PlayFolder[] = [
+export const TRAY_GROUPS: TrayGroup[] = [
   {
-    id: "physics",
-    name: "Physics",
-    blurb: "Gears, fluid, lattice",
-    accent: "#c9a66b",
-    modalities: ["Elastic", "Force", "Spatial", "Mechanical", "Slide", "Fluid", "WebGL"],
+    id: "fields",
+    name: "Fields",
+    ids: ["silk-fluid", "sand-tray", "ripple-pool", "mesh-lattice"],
   },
   {
-    id: "buttons",
-    name: "Clickers and Buttons",
-    blurb: "Clicks, switches, press",
-    accent: "#7a8a98",
-    modalities: ["Click", "Toggle", "Press"],
+    id: "motion",
+    name: "In motion",
+    ids: [
+      "elastic-web",
+      "magnetic-field",
+      "gear-mesh",
+      "orbit-beads",
+      "slider-loom",
+      "stone-polish",
+    ],
   },
   {
-    id: "fidgets",
-    name: "Fidgets",
-    blurb: "Fidget, pop, rhythm",
-    accent: "#c45a4a",
-    modalities: ["Fidget", "Pop", "Rhythm", "Granular"],
+    id: "desk",
+    name: "On the desk",
+    ids: [
+      "pen-clicker",
+      "light-switch",
+      "lamp-toggle",
+      "keyboard-thock",
+      "mouse-click",
+      "big-button",
+      "bubble-wrap",
+      "fidget-cube",
+      "fidget-spinner",
+      "zipper",
+      "pulse-pads",
+    ],
   },
 ];
 
-const STUDIO_ORDER: ExperienceId[] = [
-  "ripple-pool",
-  "sand-tray",
-  "orbit-beads",
-  "stone-polish",
-  "pen-clicker",
-  "light-switch",
-  "pulse-pads",
-  "fidget-spinner",
-  "fidget-cube",
-  "bubble-wrap",
-];
-
-/** Signature experiences — open the box and play. */
-export function signatureExperiences(): ExperienceMeta[] {
-  return STUDIO_ORDER.map((id) => getMeta(id)).filter((e): e is ExperienceMeta => !!e);
+export function experiencesInGroup(group: TrayGroup): ExperienceMeta[] {
+  return group.ids.map((id) => getMeta(id)).filter((e): e is ExperienceMeta => !!e);
 }
 
-export function studioExperiences(): ExperienceMeta[] {
-  return signatureExperiences();
-}
-
-export function experiencesInFolder(folder: PlayFolder): ExperienceMeta[] {
-  const set = new Set(folder.modalities);
-  return CATALOG.filter((e) => e.collection === "field" && set.has(e.modality));
+export function trayExperiences(): ExperienceMeta[] {
+  return TRAY_GROUPS.flatMap(experiencesInGroup);
 }

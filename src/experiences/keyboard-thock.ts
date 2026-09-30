@@ -1,5 +1,4 @@
 import { Container, Graphics, Text } from "pixi.js";
-import { countToward, unlockAchievement } from "@/engine/achievements";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
@@ -71,6 +70,23 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     return portraitQuery?.matches ?? false;
   }
 
+  /** The slice of the canvas that is actually on screen. iPhone rotation often leaves the layout viewport taller than the window you can see. */
+  function visibleFrame() {
+    const vv = window.visualViewport;
+    const host = ctx.host.getBoundingClientRect();
+    if (!vv) return { top: 0, left: 0, width: w, height: h };
+    const visTop = Math.max(vv.offsetTop, host.top);
+    const visLeft = Math.max(vv.offsetLeft, host.left);
+    const visBottom = Math.min(vv.offsetTop + vv.height, host.bottom);
+    const visRight = Math.min(vv.offsetLeft + vv.width, host.right);
+    return {
+      top: Math.max(0, visTop - host.top),
+      left: Math.max(0, visLeft - host.left),
+      width: Math.max(1, visRight - visLeft),
+      height: Math.max(1, visBottom - visTop),
+    };
+  }
+
   function layout() {
     clearLabels();
     keys.length = 0;
@@ -78,19 +94,25 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     turn.hidden = !turned;
     if (turned) return;
 
-    const gap = Math.min(14, Math.max(4, Math.min(w, h) * 0.012));
-    const usableW = w * 0.94;
+    const frame = visibleFrame();
+    const chromeTop = 52;
+    const chromeBottom = 58;
+    const bandTop = frame.top + chromeTop;
+    const bandH = Math.max(96, frame.height - chromeTop - chromeBottom);
+    const gap = Math.min(10, Math.max(3, bandH * 0.018));
+    const usableW = frame.width * 0.94;
     const topUnits = rows[0].reduce((sum, key) => sum + key.u, 0);
     const unit = (usableW - gap * (rows[0].length - 1)) / topUnits;
-    const keyH = Math.min(unit * 1.05, h * 0.16);
-    const totalH = rows.length * keyH + (rows.length - 1) * gap;
-    const originY = (h - totalH) / 2;
+    const slack = (rows.length - 1) * gap;
+    const keyH = Math.min(unit * 0.92, Math.max(16, (bandH - slack) / rows.length));
+    const totalH = rows.length * keyH + slack;
+    const originY = bandTop + (bandH - totalH) / 2;
     let i = 0;
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
       const rowUnits = row.reduce((sum, key) => sum + key.u, 0);
       const rowW = rowUnits * unit + gap * (row.length - 1);
-      let x = (w - rowW) / 2;
+      let x = frame.left + (frame.width - rowW) / 2;
       for (const spec of row) {
         const keyW = spec.u * unit;
         const k: Key = {
@@ -125,6 +147,15 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   layout();
   const onPortrait = () => layout();
   portraitQuery?.addEventListener("change", onPortrait);
+  const vv = window.visualViewport;
+  vv?.addEventListener("resize", onPortrait);
+  vv?.addEventListener("scroll", onPortrait);
+  let settle = 0;
+  const onTurn = () => {
+    window.clearTimeout(settle);
+    settle = window.setTimeout(layout, 60);
+  };
+  window.addEventListener("orientationchange", onTurn);
 
   const hit = (x: number, y: number) => {
     for (let i = 0; i < keys.length; i++) {
@@ -136,7 +167,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   };
 
   const held = new Set<number>();
-  const pressedLabels = new Set<string>();
   let pointerDown = false;
 
   const el = ctx.app.canvas;
@@ -153,22 +183,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     if (held.has(i)) return;
     held.add(i);
     keys[i].press = 1;
-    audio.keyStroke("down", 0.9, keys[i].pitch);
+    audio.keyStroke("down", 0.9, keys[i].pitch, kit);
     haptics.tap(12);
-    pressedLabels.add(keys[i].label || "space");
-    countToward("key-presses", [
-      { id: "keys-forty", goal: 150 },
-      { id: "keys-flood", goal: 400 },
-    ]);
-    if (pressedLabels.size >= 18) unlockAchievement("keys-spread");
-    const letters = [...pressedLabels].filter((label) => /^[a-z]$/i.test(label));
-    if (letters.length >= 26) unlockAchievement("keys-alphabet");
   };
 
   const releaseKey = (i: number) => {
     if (!held.has(i)) return;
     held.delete(i);
-    audio.keyStroke("up", 0.85, keys[i].pitch);
+    audio.keyStroke("up", 0.85, keys[i].pitch, kit);
   };
 
   const setUnderPointer = (i: number | null) => {
@@ -200,7 +222,19 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   el.style.touchAction = "none";
 
   let DEPTH = 10;
+  let kit: "thock" | "creamy" = "thock";
   const hud = createHud(ctx.host);
+  hud.select(
+    "Sound",
+    [
+      { value: "thock", label: "Thock" },
+      { value: "creamy", label: "Creamy" },
+    ],
+    kit,
+    (value) => {
+      kit = value === "creamy" ? "creamy" : "thock";
+    },
+  );
   hud.slider("Travel", 4, 22, DEPTH, (v) => {
     DEPTH = v;
   });
@@ -273,6 +307,10 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       hud.destroy();
       turn.remove();
       portraitQuery?.removeEventListener("change", onPortrait);
+      vv?.removeEventListener("resize", onPortrait);
+      vv?.removeEventListener("scroll", onPortrait);
+      window.removeEventListener("orientationchange", onTurn);
+      window.clearTimeout(settle);
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

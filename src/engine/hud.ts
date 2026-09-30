@@ -14,6 +14,12 @@ type HudHandle = {
     value: number,
     onChange: (v: number) => void,
   ): { set(v: number): void; el: HTMLDivElement };
+  select(
+    label: string,
+    options: { value: string; label: string }[],
+    initial: string,
+    onChange: (value: string) => void,
+  ): { set(value: string): void; el: HTMLDivElement };
   swatches(
     colors: { hex: string; label: string }[],
     initial: number,
@@ -98,6 +104,36 @@ export function createHud(host: HTMLElement): HudHandle {
       return {
         set(v: number) {
           input.value = String(v);
+        },
+        el: wrap,
+      };
+    },
+    select(label, options, initial, onChange) {
+      const wrap = document.createElement("div");
+      wrap.className = "experience-hud__slider";
+      const lab = document.createElement("span");
+      lab.textContent = label;
+      const input = document.createElement("select");
+      input.className = "experience-hud__select";
+      input.setAttribute("aria-label", label);
+      for (const option of options) {
+        const item = document.createElement("option");
+        item.value = option.value;
+        item.textContent = option.label;
+        input.appendChild(item);
+      }
+      input.value = initial;
+      const stop = (e: Event) => e.stopPropagation();
+      input.addEventListener("pointerdown", stop);
+      input.addEventListener("pointermove", stop);
+      input.addEventListener("click", stop);
+      input.addEventListener("change", () => onChange(input.value));
+      wrap.appendChild(lab);
+      wrap.appendChild(input);
+      el.appendChild(wrap);
+      return {
+        set(value: string) {
+          input.value = value;
         },
         el: wrap,
       };

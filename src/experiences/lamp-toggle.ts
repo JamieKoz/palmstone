@@ -1,5 +1,4 @@
 import { Assets, Container, Graphics, Sprite } from "pixi.js";
-import { countToward } from "@/engine/achievements";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
 
@@ -234,10 +233,6 @@ async function mount(ctx: ExperienceContext): Promise<ExperienceHandle> {
     bloom = 1;
     audio.lampToggle(on, 0.95);
     haptics.pattern([0, 16, 30, 10]);
-    countToward("lamp-snaps", [
-      { id: "lamp-eight", goal: 30 },
-      { id: "lamp-marathon", goal: 80 },
-    ]);
     // Snap impulse — release pulls the ball back up the cord
     const ball = particles[SEGMENTS - 1];
     const a = anchor();

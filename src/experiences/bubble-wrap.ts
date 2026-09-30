@@ -1,4 +1,3 @@
-import { unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -82,11 +81,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     audio.pop(0.85, b.pitch);
     haptics.tap(8);
     if (bubbles.every((x) => x.popped)) {
-      unlockAchievement("bubble-sheet");
-      sheets += 1;
-      if (sheets >= 8) unlockAchievement("bubble-three");
-      if (sheets >= 15) unlockAchievement("bubble-fifteen");
-      // refill after a beat
       window.setTimeout(() => {
         for (const bubble of bubbles) {
           bubble.popped = false;
@@ -98,7 +92,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   };
 
   let pointerDown = false;
-  let sheets = 0;
   const onPointerDown = (e: PointerEvent) => {
     pointerDown = true;
     void audio.resume();

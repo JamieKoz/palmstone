@@ -1,4 +1,3 @@
-import { countToward, unlockAchievement } from "@/engine/achievements";
 import { Container, Graphics } from "pixi.js";
 import { createHud } from "@/engine/hud";
 import type { ExperienceContext, ExperienceHandle, ExperienceModule } from "@/engine/types";
@@ -23,7 +22,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let startY = 0;
 
   let plateScale = 1;
-  let flips = 0;
   const hud = createHud(ctx.host);
   hud.slider("Size", 0.7, 1.4, plateScale, (v) => {
     plateScale = v;
@@ -55,13 +53,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     bloom = 1;
     audio.switchClick(on, 0.9);
     haptics.pattern([0, 18]);
-    flips += 1;
-    if (flips >= 15) unlockAchievement("switch-run");
-    if (flips >= 40) unlockAchievement("switch-session");
-    countToward("switch-flips", [
-      { id: "switch-twenty", goal: 100 },
-      { id: "switch-endless", goal: 200 },
-    ]);
   };
 
   const onDown = (e: PointerEvent) => {
