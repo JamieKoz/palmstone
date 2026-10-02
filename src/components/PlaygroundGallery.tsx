@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AddToHome } from "@/components/AddToHome";
 import { ExperienceThumb } from "@/components/ExperienceThumb";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
-import { PageRevealWipe } from "@/components/PageRevealWipe";
+import { navigateWithCoverWipe, PageRevealWipe } from "@/components/PageRevealWipe";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { getSharedAudio } from "@/engine/audio";
 import { TRAY_GROUPS, experiencesInGroup, getMeta, trayExperiences } from "@/engine/catalog";
@@ -85,7 +85,7 @@ export function PlaygroundGallery() {
   const settle = useCallback(
     (exp: ExperienceMeta) => {
       onExperienceNavClick();
-      router.push(`/playground/${exp.id}`);
+      navigateWithCoverWipe(router, `/playground/${exp.id}`, exp.accent);
     },
     [router],
   );
@@ -173,7 +173,11 @@ export function PlaygroundGallery() {
               {continueMeta && (
                 <Link
                   href={`/playground/${continueMeta.id}`}
-                  onClick={() => onExperienceNavClick()}
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    settle(continueMeta);
+                  }}
                   className="favourites-link"
                 >
                   Continue {continueMeta.name}

@@ -7,7 +7,27 @@ type Cord = {
   offset: number;
   vel: number;
   side: number;
+  cool: number;
 };
+
+type Mote = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  max: number;
+  kind: "note" | "spark";
+  rot: number;
+  spin: number;
+  size: number;
+  color: number;
+};
+
+/** Bow slider: low is a taut instrument string, high is a loose cord. */
+const BOW_MIN = 12;
+const BOW_MAX = 90;
+const BOW_DEFAULT = 14;
 
 /**
  * Slider Loom — one shuttle through a warp of cords.
@@ -33,12 +53,15 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   let px = 0;
   let py = 0;
   let glide: number | null = null;
+  const motes: Mote[] = [];
 
   function layout(keepMotion = false) {
     const n = 11;
     const left = w * 0.14;
     const right = w * 0.86;
-    const prev = keepMotion ? cords.map((c) => ({ offset: c.offset, vel: c.vel, side: c.side })) : [];
+    const prev = keepMotion
+      ? cords.map((c) => ({ offset: c.offset, vel: c.vel, side: c.side, cool: c.cool }))
+      : [];
     cords.length = 0;
     for (let i = 0; i < n; i++) {
       cords.push({
@@ -46,6 +69,7 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
         offset: prev[i]?.offset ?? 0,
         vel: prev[i]?.vel ?? 0,
         side: prev[i]?.side ?? 0,
+        cool: prev[i]?.cool ?? 0,
       });
     }
     if (!keepMotion) {
@@ -53,9 +77,9 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       shuttleY = h * 0.5;
     }
   }
-  let bowAmount = 46;
+  let bowAmount = BOW_DEFAULT;
   const hud = createHud(ctx.host);
-  hud.slider("Bow", 12, 90, bowAmount, (v) => {
+  hud.slider("Bow", BOW_MIN, BOW_MAX, bowAmount, (v) => {
     bowAmount = v;
   });
   layout();
@@ -100,6 +124,46 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   const top = () => h * 0.16;
   const bot = () => h * 0.84;
 
+  /** 0 = taut instrument, 1 = loose bow at the top of the slider. */
+  const slack = () => (bowAmount - BOW_MIN) / (BOW_MAX - BOW_MIN);
+
+  function spawnPluck(x: number, y: number, dir: number, drive: number) {
+    const noteLife = 0.48 + Math.random() * 0.16;
+    motes.push({
+      kind: "note",
+      x,
+      y: y - 8,
+      vx: dir * (16 + drive * 28),
+      vy: -(42 + Math.random() * 30 + drive * 16),
+      life: noteLife,
+      max: noteLife,
+      rot: dir * 0.2,
+      spin: dir * (0.4 + Math.random() * 0.5),
+      size: 15 + drive * 5,
+      color: Math.random() < 0.55 ? 0xf6ead0 : 0xe4c98a,
+    });
+    const count = 2 + (drive > 0.55 ? 2 : drive > 0.25 ? 1 : 0);
+    for (let i = 0; i < count; i++) {
+      const life = 0.14 + Math.random() * 0.16;
+      const spread = (Math.random() - 0.35) * 1.15;
+      const speed = 40 + Math.random() * 55 + drive * 70;
+      motes.push({
+        kind: "spark",
+        x: x + (Math.random() - 0.5) * 5,
+        y: y + (Math.random() - 0.5) * 7,
+        vx: Math.cos(spread) * speed * dir,
+        vy: Math.sin(spread) * speed * 0.45 - 18 - Math.random() * 16,
+        life,
+        max: life,
+        rot: 0,
+        spin: 0,
+        size: 1.2 + Math.random() * 1.3,
+        color: i % 2 === 0 ? 0xfff4d4 : 0xe8c56a,
+      });
+    }
+    if (motes.length > 36) motes.splice(0, motes.length - 36);
+  }
+
   return {
     update(dt: number) {
       const damp = Math.pow(0.86, dt * 60);
@@ -128,12 +192,16 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       shuttleY = Math.max(top() + 20, Math.min(bot() - 20, shuttleY + svy * dt));
 
       const speed = Math.hypot(svx, svy);
+      const give = slack();
+      const spring = 34 - give * 22;
+      const cordDamp = Math.pow(0.76 + give * 0.14, dt * 60);
       cords.forEach((c, i) => {
+        c.cool = Math.max(0, c.cool - dt);
         const dx = shuttleX - c.x;
         const near = Math.exp(-(dx * dx) / (72 * 72));
         const bow = near * Math.max(-1, Math.min(1, (svx || dx) / 280)) * bowAmount;
-        c.vel += (bow - c.offset) * 12 * dt;
-        c.vel *= Math.pow(0.9, dt * 60);
+        c.vel += (bow - c.offset) * spring * dt;
+        c.vel *= cordDamp;
         c.offset += c.vel * 60 * dt;
 
         const crossed = (prevX - c.x) * (shuttleX - c.x) < 0;
@@ -142,9 +210,30 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
           const drive = Math.min(1, speed / 700);
           audio.pluck(0.45 + drive * 0.5, i);
           haptics.tap(8);
-          c.vel += c.side * 80;
+          c.vel += c.side * (14 + give * 74) * (0.65 + drive * 0.35);
+          if (c.cool <= 0 && speed > 50) {
+            c.cool = 0.06;
+            const span = bot() - top();
+            const t = Math.max(0, Math.min(1, (shuttleY - top()) / Math.max(1, span)));
+            const contactX = c.x + 2 * (1 - t) * t * c.offset;
+            spawnPluck(contactX, shuttleY, c.side, drive);
+          }
         }
       });
+
+      for (let i = motes.length - 1; i >= 0; i--) {
+        const m = motes[i];
+        m.life -= dt;
+        if (m.life <= 0) {
+          motes.splice(i, 1);
+          continue;
+        }
+        m.vy += (m.kind === "note" ? 22 : 70) * dt;
+        m.x += m.vx * dt;
+        m.y += m.vy * dt;
+        m.vx *= Math.exp(-1.8 * dt);
+        m.rot += m.spin * dt;
+      }
 
       g.clear();
       g.rect(0, 0, w, h);
@@ -172,6 +261,24 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       g.stroke({ width: 2, color: 0x6a5438, alpha: 0.7 });
       g.circle(sx, sy, 5);
       g.fill({ color: 0x3a2e22, alpha: 0.85 });
+
+      for (const m of motes) {
+        const fade = Math.max(0, m.life / m.max);
+        if (m.kind === "spark") {
+          g.moveTo(m.x, m.y);
+          g.lineTo(m.x - m.vx * 0.022, m.y - m.vy * 0.022);
+          g.stroke({
+            width: Math.max(1, m.size * (0.45 + fade)),
+            color: m.color,
+            alpha: fade,
+            cap: "round",
+          });
+          g.circle(m.x, m.y, m.size * (0.35 + fade * 0.4));
+          g.fill({ color: 0xfff8ea, alpha: fade * 0.9 });
+        } else {
+          drawNote(g, m.x, m.y, m.rot, m.size * (0.85 + fade * 0.2), m.color, 0.25 + fade * 0.75);
+        }
+      }
     },
     resize(nw, nh) {
       w = nw;
@@ -186,6 +293,42 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
       layer.destroy({ children: true });
     },
   };
+}
+
+function drawNote(
+  g: Graphics,
+  x: number,
+  y: number,
+  rot: number,
+  size: number,
+  color: number,
+  alpha: number,
+) {
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  const pt = (lx: number, ly: number) => ({
+    x: x + (lx * c - ly * s) * size,
+    y: y + (lx * s + ly * c) * size,
+  });
+  const head0 = pt(0.36, 0.18);
+  g.moveTo(head0.x, head0.y);
+  for (let i = 1; i <= 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const p = pt(Math.cos(a) * 0.36, 0.18 + Math.sin(a) * 0.22);
+    g.lineTo(p.x, p.y);
+  }
+  g.fill({ color, alpha });
+  const stemBase = pt(0.28, 0.04);
+  const stemTip = pt(0.28, -0.88);
+  g.moveTo(stemBase.x, stemBase.y);
+  g.lineTo(stemTip.x, stemTip.y);
+  g.stroke({ width: Math.max(1.15, size * 0.1), color, alpha, cap: "round" });
+  const flag0 = pt(0.28, -0.88);
+  const flag1 = pt(0.72, -0.46);
+  const flag2 = pt(0.38, -0.28);
+  g.moveTo(flag0.x, flag0.y);
+  g.quadraticCurveTo(flag1.x, flag1.y, flag2.x, flag2.y);
+  g.stroke({ width: Math.max(1.1, size * 0.09), color, alpha, cap: "round" });
 }
 
 export const sliderLoom: ExperienceModule = {

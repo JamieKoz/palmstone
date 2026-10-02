@@ -28,6 +28,7 @@ export type SharedAudio = AudioBus & {
   elasticRelease: (intensity?: number, pitch?: number) => void;
   buttonPress: (phase?: "down" | "up", intensity?: number) => void;
   mouseClick: (intensity?: number, pitch?: number) => void;
+  gearClick: (intensity?: number, pitch?: number) => void;
   lampToggle: (on: boolean, intensity?: number) => void;
   water: (intensity?: number) => void;
   silk: (intensity?: number) => void;
@@ -55,12 +56,15 @@ export function getSharedAudio(): SharedAudio {
   let musicMuted = typeof window !== "undefined" ? getMusicMuted() : false;
   let lastGrain = 0;
   let lastClick = 0;
+  let lastGear = 0;
   let lastWhoosh = 0;
   let lastUi = 0;
   let lastBongo = 0;
   let lastThock = 0;
   let lastKeyUp = 0;
   let lastPop = 0;
+  /** Index of the last bubble-wrap clip so the next pop skips a repeat. */
+  let lastBubblePop = -1;
   let lastZip = 0;
   let lastElastic = 0;
   let lastWater = 0;
@@ -87,6 +91,9 @@ export function getSharedAudio(): SharedAudio {
 
   type SampleId =
     | "bubblePop"
+    | "bubblePop1"
+    | "bubblePop2"
+    | "bubblePop3"
     | "keyboard"
     | "keyDown"
     | "keyUp"
@@ -102,6 +109,7 @@ export function getSharedAudio(): SharedAudio {
     | "bigButtonDown"
     | "bigButtonRelease"
     | "mouseClick"
+    | "gearClick"
     | "elasticStretch"
     | "elasticRelease"
     | "lampSwitch"
@@ -110,6 +118,9 @@ export function getSharedAudio(): SharedAudio {
 
   const SAMPLE_FILES: Record<SampleId, string> = {
     bubblePop: "bubble-wrap-pop.mp3",
+    bubblePop1: "bubble-wrap-pop-1.wav",
+    bubblePop2: "bubble-wrap-pop-2.wav",
+    bubblePop3: "bubble-wrap-pop-3.wav",
     keyboard: "keyboard-click.mp3",
     keyDown: "keyboard-down-press.wav",
     keyUp: "keyboard-release.wav",
@@ -125,6 +136,7 @@ export function getSharedAudio(): SharedAudio {
     bigButtonDown: "big-button-press-down.wav",
     bigButtonRelease: "big-button-press-release.wav",
     mouseClick: "mouse-click.mp3",
+    gearClick: "gear-click.mp3",
     elasticStretch: "elastic-stretch.mp3",
     elasticRelease: "elastic-release.mp3",
     lampSwitch: "lamp-switch.mp3",
@@ -747,19 +759,27 @@ export function getSharedAudio(): SharedAudio {
     if (phase === "down") thock(intensity, pitch);
   }
 
+  const BUBBLE_POP_SAMPLES = ["bubblePop1", "bubblePop2", "bubblePop3"] as const;
+
+  function pickBubblePop(): (typeof BUBBLE_POP_SAMPLES)[number] {
+    const n = BUBBLE_POP_SAMPLES.length;
+    let i = (Math.random() * (lastBubblePop < 0 ? n : n - 1)) | 0;
+    if (lastBubblePop >= 0 && i >= lastBubblePop) i += 1;
+    lastBubblePop = i;
+    return BUBBLE_POP_SAMPLES[i] ?? BUBBLE_POP_SAMPLES[0];
+  }
+
   function pop(intensity = 0.7, pitch = 1) {
     if (muted) return;
     const t = now();
     if (t - lastPop < 0.01) return;
     lastPop = t;
     void ensureSamples();
-    if (
-      playSample("bubblePop", {
-        gain: 0.9 * intensity,
-        rate: 0.82 + pitch * 0.28,
-      })
-    ) {
-      return;
+    const picked = pickBubblePop();
+    const opts = { gain: 0.9 * intensity, rate: 0.82 + pitch * 0.28 };
+    if (playSample(picked, opts)) return;
+    for (const id of BUBBLE_POP_SAMPLES) {
+      if (id !== picked && playSample(id, opts)) return;
     }
     const c = ensure();
     const m = out();
@@ -1285,6 +1305,51 @@ export function getSharedAudio(): SharedAudio {
     osc.stop(t + 0.2);
   }
 
+  /** Onsets of individual clanks inside gear-click.mp3 (seconds). */
+  const GEAR_CLICK_OFFSETS = [
+    0.064, 0.129, 0.218, 0.313, 0.373, 0.433, 0.493, 0.553, 0.633, 0.712, 0.787, 0.862, 0.922,
+    0.997, 1.067, 1.136, 1.201, 1.276, 1.351, 1.431, 1.491, 1.555, 1.625, 1.7, 1.76, 1.825, 1.945,
+  ];
+
+  function gearClick(intensity = 0.85, pitch = 1) {
+    void ensureSamples();
+    if (muted || intensity <= 0.001) return;
+    const t = now();
+    if (t - lastGear < 0.046) return;
+    lastGear = t;
+    const offset = GEAR_CLICK_OFFSETS[(Math.random() * GEAR_CLICK_OFFSETS.length) | 0] ?? 0.064;
+    if (
+      playSample("gearClick", {
+        gain: 0.48 + intensity * 0.5,
+        rate: 0.92 * pitch + Math.random() * 0.08,
+        offset,
+        duration: 0.05,
+      })
+    ) {
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    const osc = c.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(140 * pitch, t);
+    osc.frequency.exponentialRampToValueAtTime(48, t + 0.04);
+    const filter = c.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 900;
+    filter.Q.value = 0.7;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22 * intensity, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(m);
+    osc.start(t);
+    osc.stop(t + 0.06);
+  }
+
   function mouseClick(intensity = 0.75, pitch = 1) {
     if (muted) return;
     void ensureSamples();
@@ -1527,6 +1592,7 @@ export function getSharedAudio(): SharedAudio {
     pluck,
     buttonPress,
     mouseClick,
+    gearClick,
     lampToggle,
     water,
     silk,

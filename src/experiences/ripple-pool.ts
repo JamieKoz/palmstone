@@ -8,6 +8,7 @@ import type {
 /**
  * Ripple Pool — WebGL2 interactive water (jquery.ripples–style).
  * Heightfield sim (ping-pong) + refraction of a procedural pool bed.
+ * A small school swims on the bed and is shoved by the same drag that drops ripples.
  */
 
 const VERT = `#version 300 es
@@ -67,6 +68,9 @@ uniform float uPerturbance;
 uniform float uTime;
 uniform vec2 uRes;
 uniform vec3 uTint;
+uniform vec4 uFish[5];
+uniform vec4 uFishStyle[5];
+uniform vec4 uFishColor[5];
 out vec4 outColor;
 
 float hash(vec2 p) {
@@ -122,6 +126,74 @@ vec3 sampleBackground(vec2 uv) {
   return col;
 }
 
+// Top-down fish on the pool bed. "local" is screen-height fractions so the body stays round.
+void fishLayer(vec2 uv, float aspect, out vec3 rgb, out float alpha, out float shadow) {
+  rgb = vec3(0.0);
+  alpha = 0.0;
+  shadow = 0.0;
+  for (int i = 0; i < 5; i++) {
+    vec2 pos = vec2(uFish[i].x, 1.0 - uFish[i].y);
+    vec2 fwd = vec2(uFish[i].z, -uFish[i].w);
+    vec2 delta = uv - pos;
+    vec2 deltaPx = vec2(delta.x * aspect, delta.y);
+    vec2 fwdPx = normalize(vec2(fwd.x * aspect, fwd.y));
+    vec2 sidePx = vec2(-fwdPx.y, fwdPx.x);
+    vec2 local = vec2(dot(deltaPx, fwdPx), dot(deltaPx, sidePx));
+
+    float sc = uFishStyle[i].x;
+    float phase = uFishStyle[i].y;
+    float wagRate = uFishStyle[i].z;
+    float spd = uFishStyle[i].w;
+    float len = 0.064 * sc;
+    float wid = 0.0105 * sc;
+    float nx = local.x / len;
+
+    // Slender teardrop: narrow nose, fuller middle, thin peduncle.
+    float bodyHalf = wid * smoothstep(-0.58, -0.22, nx) * smoothstep(1.02, 0.42, nx);
+    float fullness = sin(clamp((nx + 0.35) / 1.25, 0.0, 1.0) * 3.14159265);
+    bodyHalf *= 0.62 + 0.38 * fullness;
+    float bodyM = 0.0;
+    if (bodyHalf > 0.0005) {
+      bodyM = smoothstep(bodyHalf * 1.04, bodyHalf * 0.86, abs(local.y));
+    }
+
+    float beat = sin(uTime * (3.4 + wagRate) * (0.7 + spd * 2.8) + phase);
+    float wag = beat * wid * (1.6 + spd * 6.0);
+    float along = -nx - 0.32;
+    float across = local.y - wag * smoothstep(0.0, 0.55, along);
+    float tailHalf = wid * mix(0.28, 1.45, clamp(along / 0.5, 0.0, 1.0));
+    float tailM = 0.0;
+    if (along > 0.02 && along < 0.58 && tailHalf > 0.0004) {
+      tailM = smoothstep(tailHalf, tailHalf * 0.4, abs(across));
+      float notch = smoothstep(0.26, 0.5, along) * (1.0 - smoothstep(0.0, wid * 0.28, abs(across)));
+      tailM *= 1.0 - notch * 0.75;
+    }
+
+    float mask = max(bodyM, tailM);
+
+    vec2 shP = local - vec2(-len * 0.08, -wid * 1.1);
+    float sh = length(shP / vec2(len * 0.62, wid * 1.15));
+    shadow = max(shadow, smoothstep(1.15, 0.35, sh) * 0.34);
+
+    float spine = bodyHalf > 0.0005 ? smoothstep(bodyHalf, 0.0, abs(local.y)) : 0.0;
+    vec3 base = mix(uTint, uFishColor[i].rgb, 0.82);
+    vec3 col = mix(base * 0.72, min(base * 1.4, vec3(0.96)), spine);
+    float rim = bodyHalf > 0.0005 ? smoothstep(bodyHalf * 0.7, bodyHalf, abs(local.y)) : 0.0;
+    col = mix(col, base * 0.4, rim * bodyM);
+    col = mix(col, base * 0.78, tailM);
+    float eye = min(
+      length((local - vec2(len * 0.48, wid * 0.42)) / (wid * 0.55)),
+      length((local - vec2(len * 0.48, -wid * 0.42)) / (wid * 0.55))
+    );
+    col = mix(col, base * 0.2, smoothstep(1.05, 0.35, eye) * bodyM);
+    col += vec3(0.55, 0.7, 0.74) * spine * bodyM * 0.22;
+
+    float a = clamp(mask, 0.0, 1.0);
+    rgb = mix(rgb, col, a);
+    alpha += a * (1.0 - alpha);
+  }
+}
+
 void main() {
   float height = texture(uRipples, vUv).r;
   float heightX = texture(uRipples, vec2(vUv.x + uDelta.x, vUv.y)).r;
@@ -132,6 +204,13 @@ void main() {
 
   vec2 uv = vUv + offset * uPerturbance;
   vec3 col = mix(sampleBackground(uv), uTint, 0.5);
+
+  vec3 fishRgb;
+  float fishA;
+  float fishShadow;
+  fishLayer(mix(vUv, uv, 0.72), uRes.x / max(uRes.y, 1.0), fishRgb, fishA, fishShadow);
+  col *= mix(1.0, 0.8, fishShadow);
+  col = mix(col, fishRgb, fishA);
 
   float specular = pow(max(0.0, dot(offset, normalize(vec2(-0.55, 1.0)))), 4.0);
   col += mix(vec3(0.55, 0.72, 0.8), uTint, 0.7) * specular * 0.85;
@@ -266,6 +345,9 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     time: gl.getUniformLocation(renderProg, "uTime"),
     res: gl.getUniformLocation(renderProg, "uRes"),
     tint: gl.getUniformLocation(renderProg, "uTint"),
+    fish: gl.getUniformLocation(renderProg, "uFish"),
+    fishStyle: gl.getUniformLocation(renderProg, "uFishStyle"),
+    fishColor: gl.getUniformLocation(renderProg, "uFishColor"),
   };
 
   let rings = 1;
@@ -300,6 +382,95 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   let lastDropX = -1;
   let lastDropY = -1;
   let lastWhoosh = 0;
+  let strokeX = -1;
+  let strokeY = -1;
+
+  const FISH_N = 5;
+  const fishPos = new Float32Array(FISH_N * 4);
+  const fishStyle = new Float32Array(FISH_N * 4);
+  const fishColor = new Float32Array(FISH_N * 4);
+  const fish = [
+    { scale: 1.12, cruise: 0.05, color: [0.64, 0.8, 0.82] as [number, number, number] },
+    { scale: 0.9, cruise: 0.064, color: [0.46, 0.66, 0.62] as [number, number, number] },
+    { scale: 1.02, cruise: 0.056, color: [0.72, 0.78, 0.68] as [number, number, number] },
+    { scale: 0.82, cruise: 0.07, color: [0.5, 0.64, 0.74] as [number, number, number] },
+    { scale: 1.06, cruise: 0.052, color: [0.58, 0.72, 0.64] as [number, number, number] },
+  ].map((look, i) => {
+    const spots = [
+      [0.3, 0.36],
+      [0.66, 0.32],
+      [0.48, 0.55],
+      [0.32, 0.7],
+      [0.7, 0.66],
+    ];
+    return {
+      x: spots[i][0] + (Math.random() - 0.5) * 0.06,
+      y: spots[i][1] + (Math.random() - 0.5) * 0.06,
+      heading: Math.random() * Math.PI * 2,
+      aim: 0,
+      cruise: look.cruise,
+      vx: 0,
+      vy: 0,
+      phase: Math.random() * Math.PI * 2,
+      wanderRate: 0.35 + Math.random() * 0.45,
+      wag: 0.5 + Math.random() * 1.3,
+      scale: look.scale,
+      color: look.color,
+      wake: Math.random() * 0.04,
+    };
+  });
+  for (const f of fish) f.aim = f.heading;
+
+  const wrapAngle = (a: number) => {
+    const t = Math.PI * 2;
+    return ((a + Math.PI) % t + t) % t - Math.PI;
+  };
+
+  const capVelocity = (f: (typeof fish)[number], cap: number) => {
+    const sp = Math.hypot(f.vx, f.vy);
+    if (sp > cap) {
+      f.vx *= cap / sp;
+      f.vy *= cap / sp;
+    }
+  };
+
+  const pulseFish = (x: number, y: number) => {
+    const reach = 0.1;
+    for (const f of fish) {
+      const ox = f.x - x;
+      const oy = f.y - y;
+      const d = Math.hypot(ox, oy);
+      if (d > reach || d < 1e-4) continue;
+      const fall = (1 - d / reach) ** 1.5;
+      f.vx += (ox / d) * 0.32 * fall;
+      f.vy += (oy / d) * 0.32 * fall;
+      capVelocity(f, 0.48);
+    }
+  };
+
+  // Shove fish crossed by this drag stroke. Closest point on the segment so a fast swipe still hits.
+  const shoveFish = (x0: number, y0: number, x1: number, y1: number) => {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.0005) return;
+    const reach = 0.12;
+    const power = 3.2 * Math.min(dist * 16, 1.15);
+    const dirx = dx / dist;
+    const diry = dy / dist;
+    for (const f of fish) {
+      const t = Math.max(0, Math.min(1, ((f.x - x0) * dx + (f.y - y0) * dy) / (dist * dist)));
+      const ox = f.x - (x0 + dx * t);
+      const oy = f.y - (y0 + dy * t);
+      const d = Math.hypot(ox, oy);
+      if (d > reach) continue;
+      const fall = (1 - d / reach) ** 1.35;
+      const inv = 1 / Math.max(d, 0.01);
+      f.vx += dirx * power * fall + ox * inv * power * fall * 0.38;
+      f.vy += diry * power * fall + oy * inv * power * fall * 0.38;
+      capVelocity(f, 0.5);
+    }
+  };
 
   const toUv = (clientX: number, clientY: number) => {
     const rect = canvas.getBoundingClientRect();
@@ -394,11 +565,118 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     lastDropY = y;
   };
 
+  const stepFish = (dt: number) => {
+    let schoolX = 0;
+    let schoolY = 0;
+    for (const f of fish) {
+      schoolX += f.x;
+      schoolY += f.y;
+    }
+    schoolX /= FISH_N;
+    schoolY /= FISH_N;
+
+    const edge = 0.13;
+    let wakes = 0;
+    for (let i = 0; i < fish.length; i++) {
+      const f = fish[i];
+      // Aim drifts on its own; heading eases toward it, so paths curve instead of orbiting.
+      f.aim +=
+        dt *
+        (Math.sin(time * f.wanderRate + f.phase) * 0.65 +
+          Math.sin(time * f.wanderRate * 0.37 + f.phase * 2.1) * 0.28);
+
+      const toSchoolX = schoolX - f.x;
+      const toSchoolY = schoolY - f.y;
+      if (Math.hypot(toSchoolX, toSchoolY) > 0.3) {
+        f.aim += wrapAngle(Math.atan2(toSchoolY, toSchoolX) - f.aim) * Math.min(1, dt * 0.7);
+      }
+
+      let sepX = 0;
+      let sepY = 0;
+      for (let j = 0; j < fish.length; j++) {
+        if (i === j) continue;
+        const ox = f.x - fish[j].x;
+        const oy = f.y - fish[j].y;
+        const d2 = ox * ox + oy * oy;
+        const sep = 0.09;
+        if (d2 < sep * sep && d2 > 1e-6) {
+          const d = Math.sqrt(d2);
+          sepX += (ox / d) * (1 - d / sep);
+          sepY += (oy / d) * (1 - d / sep);
+        }
+      }
+      if (sepX !== 0 || sepY !== 0) {
+        f.aim += wrapAngle(Math.atan2(sepY, sepX) - f.aim) * Math.min(1, dt * 1.6);
+      }
+
+      let edgeX = 0;
+      let edgeY = 0;
+      if (f.x < edge) edgeX = 1;
+      else if (f.x > 1 - edge) edgeX = -1;
+      if (f.y < edge) edgeY = 1;
+      else if (f.y > 1 - edge) edgeY = -1;
+      if (edgeX !== 0 || edgeY !== 0) {
+        const depth = Math.max(
+          edgeX > 0 ? (edge - f.x) / edge : edgeX < 0 ? (f.x - (1 - edge)) / edge : 0,
+          edgeY > 0 ? (edge - f.y) / edge : edgeY < 0 ? (f.y - (1 - edge)) / edge : 0,
+        );
+        f.aim += wrapAngle(Math.atan2(edgeY, edgeX) - f.aim) * Math.min(1, dt * (2.2 + depth * 5));
+      }
+
+      const push = Math.hypot(f.vx, f.vy);
+      if (push > 0.06) {
+        f.aim += wrapAngle(Math.atan2(f.vy, f.vx) - f.aim) * Math.min(1, dt * push * 7);
+      }
+      const maxTurn = (1.25 + Math.min(push * 4, 3.2)) * dt;
+      f.heading += Math.max(-maxTurn, Math.min(maxTurn, wrapAngle(f.aim - f.heading)));
+
+      const loiter = 0.64 + 0.36 * (0.5 + 0.5 * Math.sin(time * 0.42 + f.phase));
+      const fwd = f.cruise * loiter;
+      f.vx *= Math.exp(-dt * 1.7);
+      f.vy *= Math.exp(-dt * 1.7);
+      f.x += (Math.cos(f.heading) * fwd + f.vx) * dt;
+      f.y += (Math.sin(f.heading) * fwd + f.vy) * dt;
+
+      const pad = 0.05;
+      if (f.x < pad) {
+        f.x = pad;
+        if (f.vx < 0) f.vx = 0;
+      } else if (f.x > 1 - pad) {
+        f.x = 1 - pad;
+        if (f.vx > 0) f.vx = 0;
+      }
+      if (f.y < pad) {
+        f.y = pad;
+        if (f.vy < 0) f.vy = 0;
+      } else if (f.y > 1 - pad) {
+        f.y = 1 - pad;
+        if (f.vy > 0) f.vy = 0;
+      }
+
+      const speed = Math.hypot(Math.cos(f.heading) * fwd + f.vx, Math.sin(f.heading) * fwd + f.vy);
+      f.wake += speed * dt;
+      if (f.wake > 0.042 && wakes < 2 && speed > 0.035) {
+        f.wake = 0;
+        wakes += 1;
+        const back = 0.02 * f.scale;
+        drop(
+          f.x - Math.cos(f.heading) * back,
+          f.y - Math.sin(f.heading) * back,
+          DROP_RADIUS * 0.38,
+          Math.min(0.016, 0.004 + push * 0.04),
+        );
+      }
+    }
+  };
+
   const onDown = (e: PointerEvent) => {
     pointerDown = true;
     void audio.resume();
     const p = toUv(e.clientX, e.clientY);
     lastDropX = -1;
+    strokeX = p.x;
+    strokeY = p.y;
+    pulseFish(p.x, p.y);
     maybeDropAlong(p.x, p.y, 0.35, 1.35);
     audio.water(0.75);
     haptics.tap(12);
@@ -407,6 +685,9 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     const p = toUv(e.clientX, e.clientY);
     // Always disturb water under the finger/cursor — like the demo
     if (pointerDown) {
+      if (strokeX >= 0) shoveFish(strokeX, strokeY, p.x, p.y);
+      strokeX = p.x;
+      strokeY = p.y;
       maybeDropAlong(p.x, p.y, 0.12, 1);
       const now = performance.now();
       if (now - lastWhoosh > 70) {
@@ -421,9 +702,11 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   const onUp = () => {
     pointerDown = false;
     lastDropX = -1;
+    strokeX = -1;
   };
   const onLeave = () => {
     lastDropX = -1;
+    strokeX = -1;
   };
 
   canvas.addEventListener("pointerdown", onDown);
@@ -439,6 +722,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   return {
     update(dt: number) {
       time += dt;
+      stepFish(dt);
       // Two sim steps per frame for smoother propagation
       stepSim();
       stepSim();
@@ -455,6 +739,26 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       gl.uniform1f(renderLoc.time, time);
       gl.uniform2f(renderLoc.res, canvas.width, canvas.height);
       gl.uniform3f(renderLoc.tint, tint[0], tint[1], tint[2]);
+      for (let i = 0; i < FISH_N; i++) {
+        const f = fish[i];
+        const o = i * 4;
+        const push = Math.hypot(f.vx, f.vy);
+        fishPos[o] = f.x;
+        fishPos[o + 1] = f.y;
+        fishPos[o + 2] = Math.cos(f.heading);
+        fishPos[o + 3] = Math.sin(f.heading);
+        fishStyle[o] = f.scale;
+        fishStyle[o + 1] = f.phase;
+        fishStyle[o + 2] = f.wag;
+        fishStyle[o + 3] = Math.min(1, push * 2.4);
+        fishColor[o] = f.color[0];
+        fishColor[o + 1] = f.color[1];
+        fishColor[o + 2] = f.color[2];
+        fishColor[o + 3] = 1;
+      }
+      gl.uniform4fv(renderLoc.fish, fishPos);
+      gl.uniform4fv(renderLoc.fishStyle, fishStyle);
+      gl.uniform4fv(renderLoc.fishColor, fishColor);
       drawQuad();
     },
     resize(nw, nh) {
@@ -487,7 +791,7 @@ export const ripplePool: WebGLExperienceModule = {
   name: "Ripple Pool",
   modality: "Fluid",
   tagline: "Drag the surface — real water refraction and wake.",
-  hint: "Move across the water. Press for deeper drops.",
+  hint: "Drag the water to push the fish. Press for deeper drops.",
   accent: "#6a9fb5",
   badge: "WebGL",
   mount,

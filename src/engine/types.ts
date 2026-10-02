@@ -63,6 +63,8 @@ export interface AudioBus {
   buttonPress(phase?: "down" | "up", intensity?: number): void;
   /** Optical mouse button click. */
   mouseClick(intensity?: number, pitch?: number): void;
+  /** Gear-tooth clank. intensity 0 preloads the sample without playing. */
+  gearClick(intensity?: number, pitch?: number): void;
   /** Pull-cord lamp toggle (on / off use distinct recorded snaps). */
   lampToggle(on: boolean, intensity?: number): void;
   /** Soft water stir while dragging a fluid surface. */

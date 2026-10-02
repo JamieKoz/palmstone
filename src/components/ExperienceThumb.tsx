@@ -198,6 +198,10 @@ const THUMBS: Record<ExperienceId, ReactNode> = {
       <ellipse cx="24" cy="26" rx="11" ry="5" fill="none" stroke="#8ec0d4" strokeWidth="1" strokeOpacity="0.65" />
       <ellipse cx="24" cy="26" rx="6" ry="2.7" fill="none" stroke="#e7f4fa" strokeWidth="1.15" strokeOpacity="0.9" />
       <circle cx="24" cy="26" r="1.5" fill="#f4fbfd" />
+      <g transform="translate(33 14) rotate(-18)">
+        <path d="M4.2 0 C2.8 -1.9 -2.6 -1.6 -3.2 0 C-2.6 1.6 2.8 1.9 4.2 0 Z" fill="#d4ebf3" />
+        <path d="M-2.6 0 L-6.2 -2.1 L-4.8 0 L-6.2 2.1 Z" fill="#8eb9c9" />
+      </g>
     </Frame>
   ),
   "elastic-web": <ElasticWebThumb />,
@@ -247,14 +251,16 @@ const THUMBS: Record<ExperienceId, ReactNode> = {
   ),
   "gear-mesh": (
     <Frame fill="#161410">
-      <path d={gearPath(18, 22, 12, 8, 0.2)} fill="#c4b08a" />
-      <circle cx="18" cy="22" r="5" fill="#3a342c" stroke="#d8c8a4" strokeWidth="1" />
-      <circle cx="18" cy="22" r="1.8" fill="#1c1814" />
-      <path d={gearPath(33, 30, 9, 7, 0.45)} fill="#d4c29a" />
-      <circle cx="33" cy="30" r="3.6" fill="#3a342c" stroke="#d8c8a4" strokeWidth="0.8" />
-      <circle cx="33" cy="30" r="1.4" fill="#1c1814" />
-      <circle cx="18" cy="10" r="2.1" fill="#e7d7b4" />
-      <circle cx="18" cy="10" r="0.8" fill="#2a241c" />
+      <path d={gearPath(17, 22, 12, 8, 0.16)} fill="#c4b08a" />
+      <circle cx="17" cy="22" r="5" fill="#3a342c" stroke="#d8c8a4" strokeWidth="1" />
+      <circle cx="17" cy="22" r="1.8" fill="#1c1814" />
+      <path d={gearPath(32.4, 30.2, 8.5, 7, 3.7)} fill="#d4c29a" />
+      <circle cx="32.4" cy="30.2" r="3.4" fill="#3a342c" stroke="#d8c8a4" strokeWidth="0.8" />
+      <circle cx="32.4" cy="30.2" r="1.3" fill="#1c1814" />
+      <circle cx="24.2" cy="25.6" r="1.15" fill="#ffc24a" />
+      <circle cx="25.6" cy="23.4" r="0.7" fill="#fff6e0" />
+      <circle cx="17" cy="11" r="2.1" fill="#e7d7b4" />
+      <circle cx="17" cy="11" r="0.8" fill="#2a241c" />
     </Frame>
   ),
   "orbit-beads": (
@@ -320,13 +326,20 @@ const THUMBS: Record<ExperienceId, ReactNode> = {
   ),
   "pen-clicker": (
     <Frame fill="#121418">
-      <rect x="19" y="5" width="10" height="28" rx="3" fill="#5d7f9c" />
-      <rect x="19" y="5" width="10" height="7" rx="3" fill="#e6d8c0" />
-      <circle cx="24" cy="8.2" r="2" fill="#f4ead8" />
-      <rect x="19" y="17" width="10" height="1.6" fill="#3d5a72" />
-      <rect x="19" y="21" width="10" height="1.6" fill="#3d5a72" />
-      <path d="M19 33 L29 33 L24 44 Z" fill="#c4b49a" />
-      <circle cx="24" cy="42.5" r="1.15" fill="#1a1a1a" />
+      <path d="M31.4 16.5 V24.5" fill="none" stroke="#d5dee4" strokeWidth="1.35" strokeLinecap="round" />
+      <circle cx="31.5" cy="25.2" r="1.25" fill="#e7eef2" />
+      <rect x="18.4" y="14" width="10.2" height="15" rx="2" fill="#243e52" />
+      <rect x="18.4" y="14" width="2.6" height="15" rx="1" fill="#8aafc4" fillOpacity="0.55" />
+      <rect x="18.1" y="18.2" width="10.8" height="1.6" rx="0.4" fill="#6a8fad" />
+      <rect x="17.6" y="28.2" width="11.8" height="5.6" rx="1.2" fill="#12181d" />
+      <path d="M19.2 33.2 H27.8 L26.2 37.4 H20.8 Z" fill="#c5ced4" />
+      <rect x="23.25" y="37" width="1.5" height="2.7" rx="0.5" fill="#dfe6ea" />
+      <circle cx="24" cy="40.1" r="0.9" fill="#23282c" />
+      <rect x="17.2" y="11.2" width="12.6" height="4.2" fill="#a8b3bb" />
+      <rect x="17.2" y="11.2" width="12.6" height="1.1" fill="#e7eef2" />
+      <rect x="20.4" y="6.4" width="6.2" height="6.2" rx="1.2" fill="#b7c2c8" />
+      <ellipse cx="23.5" cy="6.6" rx="3.1" ry="2.5" fill="#d5dee4" />
+      <ellipse cx="22.4" cy="5.6" rx="1.2" ry="0.7" fill="#fff" fillOpacity="0.9" />
     </Frame>
   ),
   "light-switch": (

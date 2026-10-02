@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { playUiClick } from "@/components/SiteAudio";
 import { MusicWaveToggle } from "@/components/MusicWaveToggle";
-import { armPageRevealWipe } from "@/components/PageRevealWipe";
+import {
+  isCoverWipeRunning,
+  navigateWithCoverWipe,
+  resumeCoverWipe,
+} from "@/components/PageRevealWipe";
 import { getMeta } from "@/engine/catalog";
 import { getSharedAudio } from "@/engine/audio";
 import type { EngineController } from "@/engine/runtime";
@@ -81,12 +85,18 @@ export function ExperiencePlayer({ experienceId }: Props) {
   const entering = phase === "enter";
   const exiting = phase === "exit";
 
+  useLayoutEffect(() => {
+    if (!isCoverWipeRunning()) return;
+    setPhase("idle");
+    resumeCoverWipe();
+  }, [experienceId]);
+
   useEffect(() => {
     pushRecent(experienceId);
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      setPhase("enter");
+      setPhase(isCoverWipeRunning() ? "idle" : "enter");
       setHintVisible(true);
       setReady(false);
       setError(null);
@@ -106,26 +116,14 @@ export function ExperiencePlayer({ experienceId }: Props) {
   }, [experienceId]);
 
   useEffect(() => {
-    if (!ready || phase !== "enter") return;
+    if (phase !== "enter") return;
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const ms = reduce ? 0 : 1100;
     const t = window.setTimeout(() => setPhase("idle"), ms);
     return () => window.clearTimeout(t);
-  }, [ready, experienceId, phase]);
-
-  useEffect(() => {
-    if (phase !== "exit") return;
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const ms = reduce ? 0 : 650;
-    const t = window.setTimeout(() => {
-      router.push("/playground");
-    }, ms);
-    return () => window.clearTimeout(t);
-  }, [phase, router]);
+  }, [experienceId, phase]);
 
   useEffect(() => {
     if (!meta) return;
@@ -268,11 +266,10 @@ export function ExperiencePlayer({ experienceId }: Props) {
   };
 
   const exitToPlayground = () => {
-    if (exiting) return;
+    if (exiting || isCoverWipeRunning()) return;
     playUiClick();
-    armPageRevealWipe(meta?.accent);
     setHintVisible(false);
-    setPhase("exit");
+    navigateWithCoverWipe(router, "/playground", meta?.accent);
   };
 
   if (!meta) {
@@ -290,7 +287,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
 
   const hostClass = [
     "experience-host absolute inset-0",
-    ready && entering ? "experience-host--entering" : "",
+    entering ? "experience-host--entering" : "",
     exiting ? "experience-host--exiting" : "",
   ]
     .filter(Boolean)
@@ -298,13 +295,17 @@ export function ExperiencePlayer({ experienceId }: Props) {
 
   return (
     <div
-      className={["experience-stage fixed inset-0 h-dvh w-full overflow-hidden bg-[var(--bg)]", zen ? "is-zen" : ""]
+      className={[
+        "experience-stage fixed inset-0 h-dvh w-full overflow-hidden bg-[var(--bg)]",
+        entering ? "is-entering" : "",
+        zen ? "is-zen" : "",
+      ]
         .filter(Boolean)
         .join(" ")}
     >
       <div ref={hostRef} className={hostClass} />
 
-      {ready && (entering || exiting) && (
+      {(entering || exiting) && (
         <div
           className={`circle-wipe circle-wipe--${entering ? "enter" : "exit"}`}
           style={{
@@ -325,7 +326,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
         </div>
       )}
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3 sm:p-4">
+      <header className="experience-chrome pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 px-3 pb-3 sm:px-4 sm:pb-4">
         <button
           type="button"
           onClick={exitToPlayground}
@@ -481,7 +482,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
             playUiClick();
             setHintVisible(false);
           }}
-          className="experience-hint absolute bottom-6 left-1/2 z-10 max-w-[90vw] -translate-x-1/2 rounded-full bg-[color-mix(in_oklab,var(--bg)_75%,transparent)] px-4 py-2 text-center text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
+          className="experience-hint pointer-events-auto absolute left-1/2 z-10 -translate-x-1/2 rounded-full bg-[color-mix(in_oklab,var(--bg)_75%,transparent)] px-4 py-2 text-center text-sm text-[var(--mist)] backdrop-blur-md transition hover:text-[var(--ink)]"
           inert={zen || undefined}
         >
           {meta.hint}

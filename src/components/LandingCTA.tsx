@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AddToHome } from "@/components/AddToHome";
+import { navigateWithCoverWipe } from "@/components/PageRevealWipe";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
 import { getPreferredModalities, getRecents, topAffinityIds } from "@/engine/storage";
 
 /** Soft Phase 1: pick up where you left off (local). */
 export function LandingCTA() {
+  const router = useRouter();
   const [continueId, setContinueId] = useState<string | null>(null);
   const [continueName, setContinueName] = useState<string | null>(null);
   const [vibeLine, setVibeLine] = useState<string | null>(null);
@@ -58,7 +61,16 @@ export function LandingCTA() {
           <>
             <Link
               href={`/playground/${continueId}`}
-              onClick={() => onExperienceNavClick()}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                onExperienceNavClick();
+                navigateWithCoverWipe(
+                  router,
+                  `/playground/${continueId}`,
+                  getMeta(continueId)?.accent,
+                );
+              }}
               className="inline-flex items-center gap-2 rounded-full bg-[var(--jade)] px-7 py-3.5 text-base font-medium text-[var(--bg)] transition hover:brightness-110 active:scale-[0.98]"
             >
               Continue {continueName}
