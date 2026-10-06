@@ -358,7 +358,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
     if (exiting || isCoverWipeRunning()) return;
     playUiClick();
     setHintVisible(false);
-    navigateWithCoverWipe(router, "/playground", meta?.accent);
+    navigateWithCoverWipe(router, "/playground/", meta?.accent);
   };
 
   if (!meta) {
@@ -367,7 +367,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
         <p className="font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">
           Experience not found
         </p>
-        <Link href="/playground" className="text-[var(--jade)] underline-offset-4 hover:underline">
+        <Link href="/playground/" className="text-[var(--jade)] underline-offset-4 hover:underline">
           Back to playground
         </Link>
       </div>
@@ -409,7 +409,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--bg)]">
           <p className="text-[var(--ink)]">{error}</p>
-          <Link href="/playground" className="text-[var(--jade)]">
+          <Link href="/playground/" className="text-[var(--jade)]">
             Back to playground
           </Link>
         </div>

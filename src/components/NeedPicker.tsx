@@ -35,7 +35,6 @@ type Props = {
 
 export function NeedPicker({ title = "What do you need?", onPick }: Props) {
   const router = useRouter();
-  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
   const [thumbs, setThumbs] = useState<Partial<Record<Need, ExperienceMeta | undefined>>>(() => {
     const map: Partial<Record<Need, ExperienceMeta | undefined>> = {};
     for (const need of MOODS) {
@@ -64,7 +63,7 @@ export function NeedPicker({ title = "What do you need?", onPick }: Props) {
     setLastNeed(need);
     onPick?.(need);
     const meta = thumbs[need] ?? getMeta(NEED_THUMBS[need]);
-    navigateWithCoverWipe(router, `${base}/playground/?need=${need}`, meta?.accent);
+    navigateWithCoverWipe(router, `/playground/?need=${need}`, meta?.accent);
   };
 
   return (
@@ -101,7 +100,7 @@ export function NeedPicker({ title = "What do you need?", onPick }: Props) {
         })}
       </div>
       <Link
-        href={`${base}/playground/`}
+        href="/playground/"
         onClick={() => playUiClick()}
         className="need-picker__explore need-enter"
         style={{ ["--need-i" as string]: MOODS.length + 2 }}

@@ -14,15 +14,17 @@ export function StandaloneEntry() {
       (navigator as Navigator & { standalone?: boolean }).standalone;
     if (!standalone) return;
     if (window.location.pathname !== "/" && !window.location.pathname.endsWith("/index.html")) {
-      return;
+      // Also allow basePath-rooted index when deployed under /palmstone/
+      const path = window.location.pathname.replace(/\/$/, "");
+      const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+      if (path !== "" && path !== base) return;
     }
-    const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
     const [last] = getRecents();
     if (last) {
-      router.replace(`${base}/playground/${last}/`);
+      router.replace(`/playground/${last}/`);
       return;
     }
-    router.replace(`${base}/playground/`);
+    router.replace("/playground/");
   }, [router]);
 
   return null;

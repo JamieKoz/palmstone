@@ -19,8 +19,6 @@ import {
 } from "@/engine/storage";
 import type { ExperienceMeta } from "@/engine/types";
 
-const base = () => process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-
 export function PlaygroundGallery() {
   const router = useRouter();
   const pressId = useRef<string | null>(null);
@@ -68,7 +66,7 @@ export function PlaygroundGallery() {
   const settle = useCallback(
     (exp: ExperienceMeta) => {
       onExperienceNavClick();
-      navigateWithCoverWipe(router, `${base()}/playground/${exp.id}/`, exp.accent);
+      navigateWithCoverWipe(router, `/playground/${exp.id}/`, exp.accent);
     },
     [router],
   );
@@ -98,12 +96,12 @@ export function PlaygroundGallery() {
         <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 sm:pt-12">
           <header className="gallery-header mb-6 sm:mb-8">
             <div className="gallery-header__top">
-              <Link href={`${base()}/`} onClick={() => playUiClick()} className="gallery-header__brand">
+              <Link href="/" onClick={() => playUiClick()} className="gallery-header__brand">
                 <span className="polished-orb header-mark" aria-hidden />
                 Palmstone
               </Link>
               <div className="gallery-header__controls">
-                <Link href={`${base()}/`} onClick={() => playUiClick()} className="nav-home">
+                <Link href="/" onClick={() => playUiClick()} className="nav-home">
                   Home
                 </Link>
                 <SoundLevelToggle variant="wave" className="sound-wave-btn--gallery" />
@@ -113,7 +111,7 @@ export function PlaygroundGallery() {
             <div className="gallery-header__actions">
               {continueMeta && (
                 <Link
-                  href={`${base()}/playground/${continueMeta.id}/`}
+                  href={`/playground/${continueMeta.id}/`}
                   onClick={(event) => {
                     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                     event.preventDefault();
@@ -125,7 +123,7 @@ export function PlaygroundGallery() {
                 </Link>
               )}
               <Link
-                href={`${base()}/playground/?need=ask`}
+                href="/playground/?need=ask"
                 onClick={() => playUiClick()}
                 className="gallery-find-btn"
               >
