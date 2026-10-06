@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { ExperienceIdentity } from "@/components/ExperienceIdentity";
-import { navigateWithCoverWipe } from "@/components/PageRevealWipe";
-import { onExperienceNavClick } from "@/components/SiteAudio";
+import { navigateWithCoverWipe, resumeCoverWipe } from "@/components/PageRevealWipe";
+import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
 import { NEED_DEFAULT_MINUTES, NEED_LABELS, type Need } from "@/engine/needs";
 import { recommendForNeed } from "@/engine/recommend";
@@ -21,6 +21,11 @@ export function NeedShortlist({ need }: Props) {
   const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
   const minutes = NEED_DEFAULT_MINUTES[need];
   const [items, setItems] = useState<ExperienceMeta[]>([]);
+
+  // Shell stays mounted across need→shortlist; resume the wipe here.
+  useLayoutEffect(() => {
+    resumeCoverWipe();
+  }, [need]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,25 +50,37 @@ export function NeedShortlist({ need }: Props) {
 
   return (
     <section className="need-shortlist" aria-labelledby="need-shortlist-title">
-      <div className="need-shortlist__head">
-        <Link href={`${base}/playground/?need=ask`} className="need-shortlist__back">
-          ← What do you need?
-        </Link>
+      <div className="need-shortlist__head need-enter">
+        <div className="need-shortlist__nav">
+          <Link
+            href={`${base}/playground/?need=ask`}
+            onClick={() => playUiClick()}
+            className="need-shortlist__back"
+          >
+            ← What do you need?
+          </Link>
+          <Link href={`${base}/`} onClick={() => playUiClick()} className="nav-home">
+            Home
+          </Link>
+        </div>
         <h2 id="need-shortlist-title" className="need-shortlist__title">
           {NEED_LABELS[need]}
         </h2>
-        <p className="need-shortlist__note">
-          About {minutes} minutes. Pick one that fits.
-        </p>
+        <p className="need-shortlist__note">About {minutes} minutes. Pick one that fits.</p>
       </div>
       <div className="need-shortlist__list">
-        {items.map((meta) => (
-          <ExperienceIdentity
+        {items.map((meta, index) => (
+          <div
             key={meta.id}
-            meta={meta}
-            sessionMinutes={minutes}
-            onBegin={() => begin(meta.id)}
-          />
+            className="need-enter"
+            style={{ ["--need-i" as string]: index + 1 }}
+          >
+            <ExperienceIdentity
+              meta={meta}
+              sessionMinutes={minutes}
+              onBegin={() => begin(meta.id)}
+            />
+          </div>
         ))}
       </div>
     </section>

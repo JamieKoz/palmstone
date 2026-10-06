@@ -1,7 +1,6 @@
 "use client";
 
 import { ExperienceThumb } from "@/components/ExperienceThumb";
-import { NEED_LABELS, type Need } from "@/engine/needs";
 import type { ExperienceMeta, SensoryLevel } from "@/engine/types";
 
 function SensoryMeter({ label, level }: { label: string; level: SensoryLevel }) {
@@ -24,7 +23,6 @@ type Props = {
 };
 
 export function ExperienceIdentity({ meta, sessionMinutes, onBegin }: Props) {
-  const bestFor = meta.needs.filter((n) => n !== "explore").map((n) => NEED_LABELS[n as Need]);
   const ariaLabel = `${meta.name}. ${meta.feel}${
     sessionMinutes != null ? `. About ${sessionMinutes} minutes.` : ""
   }`;
@@ -37,9 +35,6 @@ export function ExperienceIdentity({ meta, sessionMinutes, onBegin }: Props) {
       <span className="identity-pick__body">
         <span className="identity-pick__name">{meta.name}</span>
         <span className="identity-pick__feel">{meta.feel}</span>
-        {bestFor.length > 0 && (
-          <span className="identity-pick__best">Best for: {bestFor.join(" · ")}</span>
-        )}
         <span className="identity-pick__sensory">
           <SensoryMeter label="Visual" level={meta.sensory.visual} />
           <SensoryMeter label="Sound" level={meta.sensory.audio} />

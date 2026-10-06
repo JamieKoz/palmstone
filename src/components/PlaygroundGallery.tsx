@@ -102,7 +102,12 @@ export function PlaygroundGallery() {
                 <span className="polished-orb header-mark" aria-hidden />
                 Palmstone
               </Link>
-              <SoundLevelToggle variant="wave" className="sound-wave-btn--gallery" />
+              <div className="gallery-header__controls">
+                <Link href={`${base()}/`} onClick={() => playUiClick()} className="nav-home">
+                  Home
+                </Link>
+                <SoundLevelToggle variant="wave" className="sound-wave-btn--gallery" />
+              </div>
             </div>
             <p className="gallery-header__subtitle">{subtitle}</p>
             <div className="gallery-header__actions">

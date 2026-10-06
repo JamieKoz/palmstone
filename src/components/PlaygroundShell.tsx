@@ -30,6 +30,9 @@ export function PlaygroundShell({ children }: Props) {
             Palmstone
           </Link>
           <div className="shell-header__top">
+            <Link href={`${base}/`} onClick={() => playUiClick()} className="nav-home">
+              Home
+            </Link>
             <SoundLevelToggle variant="wave" className="sound-wave-btn--gallery" />
           </div>
         </header>
