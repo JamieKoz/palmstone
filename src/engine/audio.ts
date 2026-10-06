@@ -11,6 +11,8 @@ export type SharedAudio = AudioBus & {
   setPeaceEnabled: (on: boolean) => void;
   setMusicMuted: (muted: boolean) => void;
   isMusicMuted: () => boolean;
+  /** SFX / music bus multipliers (1 = full). Used for Soft vs Immersive. */
+  setGainMultipliers: (sfx: number, music: number) => void;
   startSong: () => void;
   /** Play a remote 30s song preview into the music analyser bus. */
   playTrackPreview: (track: SongHit) => Promise<void>;
@@ -54,6 +56,8 @@ export function getSharedAudio(): SharedAudio {
   let musicGain: GainNode | null = null;
   let muted = typeof window !== "undefined" ? getMuted() : false;
   let musicMuted = typeof window !== "undefined" ? getMusicMuted() : false;
+  let sfxMul = 1;
+  let musicMul = 1;
   let lastGrain = 0;
   let lastClick = 0;
   let lastGear = 0;
@@ -1445,16 +1449,23 @@ export function getSharedAudio(): SharedAudio {
     setMuted(m: boolean) {
       muted = m;
       ensure();
-      if (sfxGain) sfxGain.gain.value = muted ? 0 : 1;
+      if (sfxGain) sfxGain.gain.value = muted ? 0 : sfxMul;
     },
     isMuted() {
       return muted;
+    },
+    setGainMultipliers(sfx: number, music: number) {
+      sfxMul = sfx;
+      musicMul = music;
+      ensure();
+      if (sfxGain) sfxGain.gain.value = muted ? 0 : sfxMul;
+      if (musicGain) musicGain.gain.value = musicMuted ? 0 : musicMul;
     },
     setMusicMuted(m: boolean) {
       musicMuted = m;
       peaceWanted = !m;
       ensure();
-      if (musicGain) musicGain.gain.value = musicMuted ? 0 : 1;
+      if (musicGain) musicGain.gain.value = musicMuted ? 0 : musicMul;
       if (musicMuted) {
         if (bedStyle === "peace") stopBedInternal();
       } else if (!experienceBedActive && !songPlaying) {

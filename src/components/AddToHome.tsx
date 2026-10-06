@@ -52,7 +52,7 @@ export function AddToHome() {
     <span className="add-home">
       <button
         type="button"
-        className="favourites-link"
+        className="add-home__btn"
         onClick={() => {
           playUiClick();
           const prompt = promptRef.current;

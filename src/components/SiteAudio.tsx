@@ -3,12 +3,14 @@
 import { useEffect } from "react";
 import { getSharedAudio } from "@/engine/audio";
 import { fireHaptic } from "@/engine/haptics";
+import { applySoundLevel } from "@/engine/soundLevel";
 import { getHapticsPref, getMuted, getMusicMuted } from "@/engine/storage";
 
 /** Unlock AudioContext + start peaceful ambient on first user gesture. */
 export function SiteAudio() {
   useEffect(() => {
     const audio = getSharedAudio();
+    applySoundLevel();
     audio.setMuted(getMuted());
     audio.setMusicMuted(getMusicMuted());
 

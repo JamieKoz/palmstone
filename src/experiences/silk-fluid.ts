@@ -52,10 +52,13 @@ function isMobile() {
 function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   const { canvas, gl, audio, haptics } = ctx;
 
+  const sessionFramed =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("session");
+
   const CONFIG = {
     SIM_RESOLUTION: 128,
     DYE_RESOLUTION: 1024,
-    DENSITY_DISSIPATION: 1,
+    DENSITY_DISSIPATION: sessionFramed ? 0.92 : 1,
     VELOCITY_DISSIPATION: 0.2,
     PRESSURE: 0.8,
     PRESSURE_ITERATIONS: 20,
