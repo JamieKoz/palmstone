@@ -9,8 +9,6 @@ import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { getMeta } from "@/engine/catalog";
 import { getRecents } from "@/engine/storage";
 
-const base = () => process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-
 /** Primary door: what do you need? Continue / explore stay secondary. */
 export function LandingCTA() {
   const router = useRouter();
@@ -38,11 +36,7 @@ export function LandingCTA() {
   return (
     <div className="hero-cta">
       <div className="hero-actions">
-        <Link
-          href={`${base()}/playground/?need=ask`}
-          onClick={() => playUiClick()}
-          className="btn-primary"
-        >
+        <Link href="/playground/?need=ask" onClick={() => playUiClick()} className="btn-primary">
           Enter
           <span aria-hidden>→</span>
         </Link>
@@ -54,7 +48,7 @@ export function LandingCTA() {
               onExperienceNavClick();
               navigateWithCoverWipe(
                 router,
-                `${base()}/playground/${continueId}/`,
+                `/playground/${continueId}/`,
                 continueMeta.accent,
               );
             }}
@@ -62,11 +56,7 @@ export function LandingCTA() {
             Continue {continueMeta.name}
           </button>
         ) : (
-          <Link
-            href={`${base()}/playground/`}
-            onClick={() => playUiClick()}
-            className="btn-secondary"
-          >
+          <Link href="/playground/" onClick={() => playUiClick()} className="btn-secondary">
             Explore the tray
           </Link>
         )}

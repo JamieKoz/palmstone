@@ -17,7 +17,6 @@ const FLAGSHIPS: ExperienceId[] = [
 /** First-viewport stones — tap puts one in the hand immediately. */
 export function LandingShowcase() {
   const router = useRouter();
-  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
   const items = FLAGSHIPS.map((id) => getMeta(id)).filter(
     (m): m is NonNullable<typeof m> => !!m,
   );
@@ -35,7 +34,7 @@ export function LandingShowcase() {
             size="hero"
             onClick={() => {
               onExperienceNavClick();
-              navigateWithCoverWipe(router, `${base}/playground/${meta.id}/`, meta.accent);
+              navigateWithCoverWipe(router, `/playground/${meta.id}/`, meta.accent);
             }}
           />
         ))}

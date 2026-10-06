@@ -18,7 +18,6 @@ type Props = {
 
 export function NeedShortlist({ need }: Props) {
   const router = useRouter();
-  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
   const minutes = NEED_DEFAULT_MINUTES[need];
   const [items, setItems] = useState<ExperienceMeta[]>([]);
 
@@ -43,7 +42,7 @@ export function NeedShortlist({ need }: Props) {
     onExperienceNavClick();
     navigateWithCoverWipe(
       router,
-      `${base}/playground/${id}/?need=${need}&session=${minutes}`,
+      `/playground/${id}/?need=${need}&session=${minutes}`,
       getMeta(id)?.accent,
     );
   };
@@ -53,13 +52,13 @@ export function NeedShortlist({ need }: Props) {
       <div className="need-shortlist__head need-enter">
         <div className="need-shortlist__nav">
           <Link
-            href={`${base}/playground/?need=ask`}
+            href="/playground/?need=ask"
             onClick={() => playUiClick()}
             className="need-shortlist__back"
           >
             ← What do you need?
           </Link>
-          <Link href={`${base}/`} onClick={() => playUiClick()} className="nav-home">
+          <Link href="/" onClick={() => playUiClick()} className="nav-home">
             Home
           </Link>
         </div>
