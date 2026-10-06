@@ -298,7 +298,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   const input = document.createElement("input");
   input.type = "search";
   input.className = "song-search__input";
-  input.placeholder = "Search songs…";
+  input.placeholder = "Search a song to fidget with…";
   input.autocomplete = "off";
   input.spellcheck = false;
   input.setAttribute("aria-label", "Search songs");

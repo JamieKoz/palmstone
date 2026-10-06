@@ -1,0 +1,71 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ExperienceIdentity } from "@/components/ExperienceIdentity";
+import { navigateWithCoverWipe } from "@/components/PageRevealWipe";
+import { onExperienceNavClick } from "@/components/SiteAudio";
+import { getMeta } from "@/engine/catalog";
+import { NEED_DEFAULT_MINUTES, NEED_LABELS, type Need } from "@/engine/needs";
+import { recommendForNeed } from "@/engine/recommend";
+import { setLastNeed } from "@/engine/storage";
+import type { ExperienceMeta } from "@/engine/types";
+
+type Props = {
+  need: Exclude<Need, "explore">;
+};
+
+export function NeedShortlist({ need }: Props) {
+  const router = useRouter();
+  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  const minutes = NEED_DEFAULT_MINUTES[need];
+  const [items, setItems] = useState<ExperienceMeta[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setItems(recommendForNeed(need, 4));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [need]);
+
+  const begin = (id: string) => {
+    setLastNeed(need);
+    onExperienceNavClick();
+    navigateWithCoverWipe(
+      router,
+      `${base}/playground/${id}/?need=${need}&session=${minutes}`,
+      getMeta(id)?.accent,
+    );
+  };
+
+  return (
+    <section className="need-shortlist" aria-labelledby="need-shortlist-title">
+      <div className="need-shortlist__head">
+        <Link href={`${base}/playground/?need=ask`} className="need-shortlist__back">
+          ← What do you need?
+        </Link>
+        <h2 id="need-shortlist-title" className="need-shortlist__title">
+          {NEED_LABELS[need]}
+        </h2>
+        <p className="need-shortlist__note">
+          About {minutes} minutes. Pick one that fits.
+        </p>
+      </div>
+      <div className="need-shortlist__list">
+        {items.map((meta) => (
+          <ExperienceIdentity
+            key={meta.id}
+            meta={meta}
+            sessionMinutes={minutes}
+            onBegin={() => begin(meta.id)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}

@@ -1,14 +1,14 @@
-import type { ExperienceId, ExperienceMeta } from "./types";
+import { applyProfile } from "./profiles";
+import type { ExperienceId, ExperienceMeta, ExperienceMetaCore } from "./types";
 
-/** Pure metadata — safe for server components / SSR. */
-export const CATALOG: ExperienceMeta[] = [
+const CATALOG_BASE = [
   {
     id: "mesh-lattice",
     name: "Mesh Lattice",
     collection: "field",
     modality: "WebGL",
-    tagline: "Orbit the lattice. Search a song and watch it dance.",
-    hint: "Drag to orbit. Scroll to zoom, or use the Zoom slider on a phone.",
+    tagline: "Fidget with the lattice while a song moves through it.",
+    hint: "Search a song for a 30s preview, or drag to orbit. Best with sound on.",
     accent: "#6db8b0",
     badge: "WebGL",
   },
@@ -196,7 +196,10 @@ export const CATALOG: ExperienceMeta[] = [
     hint: "Drag the zipper up and down.",
     accent: "#c4b080",
   },
-];
+] as const satisfies ExperienceMetaCore[];
+
+/** Pure metadata — safe for server components / SSR. */
+export const CATALOG: ExperienceMeta[] = CATALOG_BASE.map((entry) => applyProfile(entry));
 
 export function getMeta(id: string): ExperienceMeta | undefined {
   return CATALOG.find((e) => e.id === id);
@@ -215,6 +218,7 @@ export type TrayGroup = {
   ids: ExperienceId[];
 };
 
+/** Flagships first in each cluster. One-note desk toys sit at the end. */
 export const TRAY_GROUPS: TrayGroup[] = [
   {
     id: "fields",
@@ -225,29 +229,29 @@ export const TRAY_GROUPS: TrayGroup[] = [
     id: "motion",
     name: "In motion",
     ids: [
+      "gear-mesh",
       "elastic-web",
       "magnetic-field",
-      "gear-mesh",
-      "orbit-beads",
       "slider-loom",
       "stone-polish",
+      "orbit-beads",
     ],
   },
   {
     id: "desk",
     name: "On the desk",
     ids: [
+      "keyboard-thock",
+      "fidget-cube",
+      "bubble-wrap",
+      "zipper",
+      "fidget-spinner",
+      "pulse-pads",
+      "lamp-toggle",
       "pen-clicker",
       "light-switch",
-      "lamp-toggle",
-      "keyboard-thock",
-      "mouse-click",
       "big-button",
-      "bubble-wrap",
-      "fidget-cube",
-      "fidget-spinner",
-      "zipper",
-      "pulse-pads",
+      "mouse-click",
     ],
   },
 ];

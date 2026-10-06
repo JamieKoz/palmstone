@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ExperiencePlayer } from "@/components/ExperiencePlayer";
 import { CATALOG } from "@/engine/catalog";
 
@@ -29,5 +30,9 @@ export default async function PlayPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <ExperiencePlayer experienceId={id} />;
+  return (
+    <Suspense fallback={null}>
+      <ExperiencePlayer experienceId={id} />
+    </Suspense>
+  );
 }

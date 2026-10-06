@@ -1,4 +1,5 @@
 import type { Application, Container } from "pixi.js";
+import type { Need } from "./needs";
 
 export type ExperienceId =
   | "sand-tray"
@@ -124,7 +125,17 @@ export interface ExperienceHandle {
 /** Metadata on each module. The playground tray groups experiences itself. */
 export type ExperienceCollection = "studio" | "field";
 
-export interface ExperienceMeta {
+export type ExperienceLayer = "object" | "environment" | "world";
+
+export type SensoryLevel = 1 | 2 | 3;
+
+export type ExperienceSensory = {
+  visual: SensoryLevel;
+  audio: SensoryLevel;
+  haptic: SensoryLevel;
+};
+
+export interface ExperienceMetaCore {
   id: ExperienceId;
   name: string;
   modality: string;
@@ -136,12 +147,23 @@ export interface ExperienceMeta {
   badge?: string;
 }
 
-export interface PixiExperienceModule extends ExperienceMeta {
+export interface ExperienceMeta extends ExperienceMetaCore {
+  needs: Need[];
+  layer: ExperienceLayer;
+  feel: string;
+  sensory: ExperienceSensory;
+  speed: "slow" | "medium" | "fast";
+  predictability: "high" | "medium" | "low";
+  cognitive: "low" | "medium" | "high";
+  hapticBest?: boolean;
+}
+
+export interface PixiExperienceModule extends ExperienceMetaCore {
   kind?: "pixi";
   mount(ctx: ExperienceContext): ExperienceHandle | Promise<ExperienceHandle>;
 }
 
-export interface WebGLExperienceModule extends ExperienceMeta {
+export interface WebGLExperienceModule extends ExperienceMetaCore {
   kind: "webgl";
   mount(ctx: WebGLExperienceContext): ExperienceHandle | Promise<ExperienceHandle>;
 }

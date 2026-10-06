@@ -138,8 +138,24 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   turn.hidden = true;
   turn.setAttribute("role", "status");
   turn.innerHTML =
-    '<span class="kb-turn__phone" aria-hidden="true"></span><p>Turn your phone sideways</p>';
+    '<span class="kb-turn__phone" aria-hidden="true"></span><p>Sideways feels better — or just play</p><button type="button" class="kb-turn__dismiss">Got it</button>';
   ctx.host.appendChild(turn);
+  let tipDismissed = false;
+  try {
+    tipDismissed = sessionStorage.getItem("palmstone:kbTip") === "1";
+  } catch {
+    /* private mode */
+  }
+  turn.querySelector(".kb-turn__dismiss")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    tipDismissed = true;
+    turn.hidden = true;
+    try {
+      sessionStorage.setItem("palmstone:kbTip", "1");
+    } catch {
+      /* quota */
+    }
+  });
 
   const portraitQuery =
     typeof window !== "undefined"
@@ -191,9 +207,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     bars.length = 0;
     sparks.length = 0;
     seedMotes();
-    const turned = phonePortrait();
-    turn.hidden = !turned;
-    if (turned) return;
+    // Soft tip in portrait — never block the board.
+    turn.hidden = tipDismissed || !phonePortrait();
 
     const frame = visibleFrame();
     const chromeTop = 52;
@@ -465,7 +480,6 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (phonePortrait()) return;
     if (e.isComposing) return;
     const target = e.target;
     if (target instanceof HTMLElement) {
@@ -501,7 +515,14 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   window.addEventListener("keyup", onKeyUp);
 
   let DEPTH = 10;
+  const KIT_KEY = "palmstone:keyboardKit";
   let kit: "thock" | "creamy" = "thock";
+  try {
+    const saved = localStorage.getItem(KIT_KEY);
+    if (saved === "creamy" || saved === "thock") kit = saved;
+  } catch {
+    /* private mode */
+  }
   const hud = createHud(ctx.host);
   hud.select(
     "Sound",
@@ -512,6 +533,11 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     kit,
     (value) => {
       kit = value === "creamy" ? "creamy" : "thock";
+      try {
+        localStorage.setItem(KIT_KEY, kit);
+      } catch {
+        /* quota */
+      }
     },
   );
   hud.slider("Travel", 4, 22, DEPTH, (v) => {

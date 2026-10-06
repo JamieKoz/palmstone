@@ -1,29 +1,31 @@
 import { LandingCTA } from "@/components/LandingCTA";
+import { LandingShowcase } from "@/components/LandingShowcase";
+import { StandaloneEntry } from "@/components/StandaloneEntry";
 
 export default function HomePage() {
   return (
-    <main className="relative flex min-h-dvh flex-col overflow-hidden">
+    <main className="landing-page relative">
+      <StandaloneEntry />
       <div className="atmosphere" aria-hidden />
       <div className="grain-overlay" aria-hidden />
 
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
-        <div
-          className="hero-mark polished-orb h-[min(70vw,420px)] w-[min(70vw,420px)]"
-        />
-      </div>
+      <section className="landing-hero" aria-label="Palmstone">
+        <div className="landing-hero__orb" aria-hidden>
+          <div className="hero-mark polished-orb">
+            <span className="hero-mark__spin" />
+          </div>
+        </div>
 
-      <div className="relative z-10 flex flex-1 flex-col justify-end px-6 pb-16 pt-24 sm:px-10 sm:pb-20 lg:justify-center lg:pb-24">
-        <div className="hero-motion mx-auto w-full max-w-2xl lg:mx-0 lg:max-w-xl">
-          <h1 className="font-[family-name:var(--font-display)] text-[clamp(3.25rem,12vw,5.5rem)] leading-[0.95] tracking-tight text-[var(--ink)]">
-            Palmstone
-          </h1>
-          <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--mist)] sm:text-xl">
-            Ridiculously satisfying interactions for when you need to settle, focus, or just feel
-            something.
-          </p>
+        <div className="landing-hero__copy">
+          <h1 className="landing-hero__title">Palmstone</h1>
+          <p className="landing-hero__line">Something to do with your hands.</p>
           <LandingCTA />
         </div>
-      </div>
+
+        <div id="on-the-tray" className="landing-hero__tray">
+          <LandingShowcase />
+        </div>
+      </section>
     </main>
   );
 }

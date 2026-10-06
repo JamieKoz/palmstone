@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Palmstone",
     short_name: "Palmstone",
     description:
-      "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
-    start_url: "./",
+      "A personal sensory space — settle, focus, or give your hands something to do.",
+    start_url: "./playground/",
     scope: "./",
     display: "standalone",
     background_color: "#0f1412",

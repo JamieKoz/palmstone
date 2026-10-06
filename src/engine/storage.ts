@@ -1,3 +1,5 @@
+import type { Need } from "./needs";
+
 const FAV_KEY = "palmstone:favourites";
 const MUTE_KEY = "palmstone:muted";
 const MUSIC_MUTE_KEY = "palmstone:musicMuted";
@@ -5,6 +7,26 @@ const HAP_KEY = "palmstone:haptics";
 const RECENT_KEY = "palmstone:recents";
 const MODALITY_KEY = "palmstone:modalitySeconds";
 const SESSIONS_KEY = "palmstone:sessionCount";
+const SESSION_LOG_KEY = "palmstone:sessions";
+const LAST_NEED_KEY = "palmstone:lastNeed";
+const SOUND_LEVEL_KEY = "palmstone:soundLevel";
+const ACTIVE_SESSION_KEY = "palmstone:activeSession";
+
+export type SessionFeedback = "better" | "same" | "worse";
+
+export type SessionRecord = {
+  id: string;
+  experienceId: string;
+  need: Need | null;
+  startedAt: number;
+  durationMs: number;
+  plannedMs: number | null;
+  completed: boolean;
+  feedback: SessionFeedback | null;
+  hour: number;
+};
+
+export type SoundLevel = "off" | "soft" | "immersive";
 
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -209,6 +231,116 @@ export function gravityFromFeel(): number {
   return 1;
 }
 
+export function getLastNeed(): Need | null {
+  const raw = readJson<string | null>(LAST_NEED_KEY, null);
+  if (raw === "settle" || raw === "focus" || raw === "stimulate" || raw === "hands" || raw === "explore") {
+    return raw;
+  }
+  return null;
+}
+
+export function setLastNeed(need: Need) {
+  writeJson(LAST_NEED_KEY, need);
+}
+
+export function getSoundLevel(): SoundLevel | null {
+  const raw = readJson<string | null>(SOUND_LEVEL_KEY, null);
+  if (raw === "off" || raw === "soft" || raw === "immersive") return raw;
+  return null;
+}
+
+export function setSoundLevel(level: SoundLevel) {
+  writeJson(SOUND_LEVEL_KEY, level);
+  if (level === "off") {
+    setMutedPref(true);
+    setMusicMutedPref(true);
+  } else if (level === "soft") {
+    setMutedPref(false);
+    setMusicMutedPref(false);
+  } else {
+    setMutedPref(false);
+    setMusicMutedPref(false);
+  }
+}
+
+function readSessionLog(): SessionRecord[] {
+  return readJson<SessionRecord[]>(SESSION_LOG_KEY, []);
+}
+
+function writeSessionLog(rows: SessionRecord[]) {
+  writeJson(SESSION_LOG_KEY, rows.slice(0, 50));
+}
+
+export function startSessionRecord(
+  experienceId: string,
+  need: Need | null,
+  plannedMs: number | null,
+): string {
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const row: SessionRecord = {
+    id,
+    experienceId,
+    need,
+    startedAt: Date.now(),
+    durationMs: 0,
+    plannedMs,
+    completed: false,
+    feedback: null,
+    hour: new Date().getHours(),
+  };
+  writeJson(ACTIVE_SESSION_KEY, id);
+  const log = readSessionLog();
+  writeSessionLog([row, ...log]);
+  return id;
+}
+
+export function getActiveSessionId(): string | null {
+  return readJson<string | null>(ACTIVE_SESSION_KEY, null);
+}
+
+export function patchSessionRecord(
+  sessionId: string,
+  patch: Partial<Pick<SessionRecord, "durationMs" | "completed" | "feedback">>,
+) {
+  const log = readSessionLog();
+  const next = log.map((row) => (row.id === sessionId ? { ...row, ...patch } : row));
+  writeSessionLog(next);
+}
+
+export function clearActiveSession() {
+  writeJson(ACTIVE_SESSION_KEY, null);
+}
+
+export function setSessionFeedback(sessionId: string, feedback: SessionFeedback) {
+  patchSessionRecord(sessionId, { feedback });
+  clearActiveSession();
+}
+
+export function getSessionHistoryForRecommend(): SessionRecord[] {
+  return readSessionLog();
+}
+
+export function getExperienceFeedbackBias(id: string): SessionFeedback | null {
+  const rows = readSessionLog().filter((r) => r.experienceId === id && r.feedback);
+  if (rows.length === 0) return null;
+  const scores = { better: 0, same: 0, worse: 0 };
+  for (const row of rows) {
+    if (row.feedback) scores[row.feedback] += 1;
+  }
+  if (scores.better >= scores.worse && scores.better >= scores.same) return "better";
+  if (scores.worse > scores.better) return "worse";
+  return "same";
+}
+
+export function getRecentMetaTimestamps(): Record<string, number> {
+  const profile = getProfile();
+  const out: Record<string, number> = {};
+  for (const [id, stats] of Object.entries(profile.experiences)) {
+    if (stats.lastPlayed) out[id] = stats.lastPlayed;
+  }
+  return out;
+}
+
 function affinityScore(id: string, favourite: boolean): number {
   const stats = getProfile().experiences[id];
   if (!stats) return 0;
@@ -218,11 +350,19 @@ function affinityScore(id: string, favourite: boolean): number {
   return (stats.seconds * (1 + interaction * 0.35) + stats.opens * 2) * recency * (favourite ? 1.4 : 1);
 }
 
+/** Real habit — not a single open. Used before claiming “for you” / “keep coming back”. */
+export function hasStrongAffinity(id: string): boolean {
+  const stats = getProfile().experiences[id];
+  if (!stats) return false;
+  return stats.opens >= 3 && stats.seconds >= 45;
+}
+
 export function topAffinityIds(limit = 4): string[] {
   const favs = new Set(getFavourites());
   return Object.keys(getProfile().experiences)
+    .filter((id) => hasStrongAffinity(id))
     .map((id) => ({ id, score: affinityScore(id, favs.has(id)) }))
-    .filter((row) => row.score > 3)
+    .filter((row) => row.score > 20)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((row) => row.id);

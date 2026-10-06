@@ -261,10 +261,32 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     };
   }
 
+  const SAND_SESSION_KEY = "palmstone:sand-tray-session";
+
   function fillBed() {
     grains.length = 0;
     const t = tray();
-    for (let i = 0; i < 1600; i++) grains.push(spawnGrain(t));
+    try {
+      const raw = sessionStorage.getItem(SAND_SESSION_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as { x: number; y: number; r: number; shade: number }[];
+        for (const g of saved.slice(0, MAX)) {
+          grains.push({
+            x: g.x,
+            y: g.y,
+            vx: 0,
+            vy: 0,
+            r: g.r,
+            shade: g.shade,
+            alive: true,
+          });
+        }
+        if (grains.length > 400) return;
+      }
+    } catch {
+      /* ignore corrupt session sand */
+    }
+    for (let i = grains.length; i < 1600; i++) grains.push(spawnGrain(t));
   }
   fillBed();
 
@@ -517,6 +539,15 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       h = nh;
     },
     destroy() {
+      try {
+        const payload = grains
+          .filter((g) => g.alive)
+          .slice(0, 900)
+          .map((g) => ({ x: g.x, y: g.y, r: g.r, shade: g.shade }));
+        sessionStorage.setItem(SAND_SESSION_KEY, JSON.stringify(payload));
+      } catch {
+        /* quota */
+      }
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

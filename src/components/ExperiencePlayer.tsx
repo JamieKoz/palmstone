@@ -2,9 +2,9 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { playUiClick } from "@/components/SiteAudio";
-import { MusicWaveToggle } from "@/components/MusicWaveToggle";
+import { SoundLevelToggle } from "@/components/SoundLevelToggle";
 import {
   isCoverWipeRunning,
   navigateWithCoverWipe,
@@ -13,16 +13,23 @@ import {
 import { getMeta } from "@/engine/catalog";
 import { getSharedAudio } from "@/engine/audio";
 import type { EngineController } from "@/engine/runtime";
+import { NEED_LABELS, parseNeed, TIMER_PRESETS, type Need } from "@/engine/needs";
+import { applySoundLevel } from "@/engine/soundLevel";
 import {
+  clearActiveSession,
   getHapticsPref,
   getMuted,
   isFavourite,
+  patchSessionRecord,
   pushRecent,
   recordExperiencePlay,
   recordModalityPlay,
   setHapticsPref,
-  setMutedPref,
+  setLastNeed,
+  setSessionFeedback,
+  startSessionRecord,
   toggleFavourite,
+  type SessionFeedback,
 } from "@/engine/storage";
 
 type Props = {
@@ -30,8 +37,6 @@ type Props = {
 };
 
 type TransitionPhase = "enter" | "idle" | "exit";
-
-const TIMER_MINUTES = [3, 5, 10, 20] as const;
 
 function CogIcon() {
   return (
@@ -63,6 +68,9 @@ function formatRemain(ms: number) {
 
 export function ExperiencePlayer({ experienceId }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const needParam = parseNeed(searchParams.get("need"));
+  const sessionMinutesParam = Number.parseInt(searchParams.get("session") ?? "", 10);
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<EngineController | null>(null);
   const [ready, setReady] = useState(false);
@@ -78,8 +86,14 @@ export function ExperiencePlayer({ experienceId }: Props) {
   const [timerEndsAt, setTimerEndsAt] = useState<number | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [timerDone, setTimerDone] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStartRef = useRef<number>(Date.now());
+  const plannedMsRef = useRef<number | null>(null);
+  const needRef = useRef<Need | null>(null);
+  const autoSessionStarted = useRef(false);
 
   const meta = getMeta(experienceId);
   const entering = phase === "enter";
@@ -100,6 +114,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
       setHintVisible(true);
       setReady(false);
       setError(null);
+      applySoundLevel();
       setMuted(getMuted());
       setHapticsOn(getHapticsPref());
       setFav(isFavourite(experienceId));
@@ -109,11 +124,36 @@ export function ExperiencePlayer({ experienceId }: Props) {
       setTimerEndsAt(null);
       setRemaining(null);
       setTimerDone(false);
+      setFeedbackOpen(false);
+      autoSessionStarted.current = false;
+      sessionStartRef.current = Date.now();
+      needRef.current = needParam;
+      if (needParam) setLastNeed(needParam);
+      const planned =
+        Number.isFinite(sessionMinutesParam) && sessionMinutesParam > 0
+          ? sessionMinutesParam * 60_000
+          : null;
+      plannedMsRef.current = planned;
+      sessionIdRef.current = startSessionRecord(experienceId, needParam, planned);
     });
     return () => {
       cancelled = true;
+      const sid = sessionIdRef.current;
+      if (sid) {
+        patchSessionRecord(sid, {
+          durationMs: Date.now() - sessionStartRef.current,
+        });
+      }
     };
-  }, [experienceId]);
+  }, [experienceId, needParam, sessionMinutesParam]);
+
+  useEffect(() => {
+    if (!ready || autoSessionStarted.current) return;
+    if (!Number.isFinite(sessionMinutesParam) || sessionMinutesParam <= 0) return;
+    autoSessionStarted.current = true;
+    setTimerDone(false);
+    setTimerEndsAt(Date.now() + sessionMinutesParam * 60_000);
+  }, [ready, sessionMinutesParam]);
 
   useEffect(() => {
     if (phase !== "enter") return;
@@ -200,6 +240,13 @@ export function ExperiencePlayer({ experienceId }: Props) {
         setRemaining(null);
         setZen(false);
         setTimerDone(true);
+        const sid = sessionIdRef.current;
+        if (sid) {
+          patchSessionRecord(sid, {
+            durationMs: Date.now() - sessionStartRef.current,
+            completed: true,
+          });
+        }
         return;
       }
       setRemaining(left);
@@ -246,15 +293,57 @@ export function ExperiencePlayer({ experienceId }: Props) {
 
   useEffect(() => {
     if (!hintVisible || entering || exiting || !ready) return;
-    const t = window.setTimeout(() => setHintVisible(false), 4500);
+    const t = window.setTimeout(() => setHintVisible(false), 2800);
     return () => window.clearTimeout(t);
   }, [hintVisible, experienceId, entering, exiting, ready]);
+
+  // After the first touch, get chrome out of the way — toys first.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !ready || entering) return;
+    const onFirstTouch = () => {
+      setHintVisible(false);
+      setZen(true);
+      setSettingsOpen(false);
+    };
+    host.addEventListener("pointerdown", onFirstTouch, { once: true });
+    return () => host.removeEventListener("pointerdown", onFirstTouch);
+  }, [ready, entering, experienceId]);
 
   const startTimer = (minutes: number) => {
     playUiClick();
     setTimerDone(false);
+    setFeedbackOpen(false);
+    plannedMsRef.current = minutes * 60_000;
     setTimerEndsAt(Date.now() + minutes * 60_000);
     setTimesOpen(false);
+  };
+
+  const restartSessionTimer = () => {
+    playUiClick();
+    setTimerDone(false);
+    const mins =
+      plannedMsRef.current != null
+        ? Math.round(plannedMsRef.current / 60_000)
+        : sessionMinutesParam > 0
+          ? sessionMinutesParam
+          : 5;
+    startTimer(mins);
+  };
+
+  const completeAndAskFeedback = () => {
+    playUiClick();
+    setTimerDone(false);
+    setFeedbackOpen(true);
+  };
+
+  const submitFeedback = (feedback: SessionFeedback) => {
+    playUiClick();
+    const sid = sessionIdRef.current;
+    if (sid) setSessionFeedback(sid, feedback);
+    else clearActiveSession();
+    setFeedbackOpen(false);
+    exitToPlayground();
   };
 
   const clearTimer = () => {
@@ -336,6 +425,15 @@ export function ExperiencePlayer({ experienceId }: Props) {
         >
           ← Exit
         </button>
+        {remaining != null && meta && (
+          <div className="session-bar pointer-events-none" aria-live="polite">
+            <span className="session-bar__name">{meta.name}</span>
+            {needRef.current && needRef.current !== "explore" && (
+              <span className="session-bar__need">{NEED_LABELS[needRef.current]}</span>
+            )}
+            <span className="session-bar__time">{formatRemain(remaining)}</span>
+          </div>
+        )}
         <div className="experience-settings pointer-events-auto" ref={settingsRef}>
           <button
             type="button"
@@ -345,7 +443,10 @@ export function ExperiencePlayer({ experienceId }: Props) {
             onClick={() => {
               playUiClick();
               setTimesOpen(false);
-              setSettingsOpen((open) => !open);
+              setSettingsOpen((open) => {
+                if (!open) setZen(false);
+                return !open;
+              });
             }}
             style={
               zen
@@ -379,9 +480,9 @@ export function ExperiencePlayer({ experienceId }: Props) {
                 </button>
                 {timesOpen && (
                   <div className="experience-settings__times" role="group" aria-label="Session length">
-                    {TIMER_MINUTES.map((minutes) => (
+                    {TIMER_PRESETS.map(({ minutes, label }) => (
                       <button key={minutes} type="button" onClick={() => startTimer(minutes)}>
-                        {minutes} min
+                        {minutes} min · {label}
                       </button>
                     ))}
                     {remaining != null && (
@@ -392,28 +493,8 @@ export function ExperiencePlayer({ experienceId }: Props) {
                   </div>
                 )}
               </div>
-              <div className="experience-settings__row">
-                <span>Music</span>
-                <MusicWaveToggle />
-              </div>
-              <button
-                type="button"
-                className="experience-settings__row"
-                aria-pressed={muted}
-                aria-label={muted ? "Unmute experience sounds" : "Mute experience sounds"}
-                onClick={() => {
-                  const next = !muted;
-                  if (next) playUiClick();
-                  setMuted(next);
-                  setMutedPref(next);
-                  getSharedAudio().setMuted(next);
-                  engineRef.current?.setMuted(next);
-                  if (!next) playUiClick();
-                }}
-              >
-                <span>Sounds</span>
-                <span className={muted ? "ui-toggle-off" : ""}>{muted ? "Off" : "On"}</span>
-              </button>
+              <SoundLevelToggle variant="menu" />
+              <p className="experience-settings__privacy">Your preferences stay on this device.</p>
               <button
                 type="button"
                 className="experience-settings__row"
@@ -491,14 +572,36 @@ export function ExperiencePlayer({ experienceId }: Props) {
 
       {timerDone && (
         <div className="session-end" role="status">
-          <p className="session-end__title">That&apos;s your time.</p>
-          <p className="session-end__note">Stay if you want, or step out.</p>
+          <p className="session-end__title">Feel a little different?</p>
+          <p className="session-end__note">Stay with it, run it again, or wrap up.</p>
           <div className="session-end__actions">
             <button type="button" onClick={() => setTimerDone(false)}>
               Stay
             </button>
-            <button type="button" onClick={exitToPlayground}>
-              Step out
+            <button type="button" onClick={restartSessionTimer}>
+              Again
+            </button>
+            <button type="button" onClick={completeAndAskFeedback}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {feedbackOpen && (
+        <div className="session-feedback" role="dialog" aria-labelledby="session-feedback-title">
+          <p id="session-feedback-title" className="session-feedback__title">
+            Did that help?
+          </p>
+          <div className="session-feedback__actions">
+            <button type="button" onClick={() => submitFeedback("better")} aria-label="Better">
+              Better
+            </button>
+            <button type="button" onClick={() => submitFeedback("same")} aria-label="Same">
+              Same
+            </button>
+            <button type="button" onClick={() => submitFeedback("worse")} aria-label="Worse">
+              Worse
             </button>
           </div>
         </div>

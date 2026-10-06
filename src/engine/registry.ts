@@ -1,3 +1,4 @@
+import { getMeta } from "./catalog";
 import type { ExperienceId, ExperienceModule } from "./types";
 import { sandTray } from "@/experiences/sand-tray";
 import { silkFluid } from "@/experiences/silk-fluid";
@@ -47,5 +48,8 @@ const MODULES: ExperienceModule[] = [
 ];
 
 export function getExperienceModule(id: ExperienceId | string): ExperienceModule | undefined {
-  return MODULES.find((e) => e.id === id);
+  const mod = MODULES.find((e) => e.id === id);
+  const meta = getMeta(id);
+  if (!mod || !meta) return undefined;
+  return { ...mod, ...meta };
 }

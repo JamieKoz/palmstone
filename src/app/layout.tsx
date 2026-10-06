@@ -19,9 +19,9 @@ const shareImage = `${basePath}/og.png`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin),
-  title: "Palmstone — sensory playground",
+  title: "Palmstone — a personal sensory space",
   description:
-    "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
+    "Something to do with your hands. Somewhere for your mind to settle.",
   applicationName: "Palmstone",
   appleWebApp: {
     capable: true,
@@ -33,16 +33,16 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Palmstone — sensory playground",
+    title: "Palmstone — a personal sensory space",
     description:
-      "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
+      "Something to do with your hands. Somewhere for your mind to settle.",
     images: [shareImage],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Palmstone — sensory playground",
+    title: "Palmstone — a personal sensory space",
     description:
-      "Ridiculously satisfying interactions for when you need to settle, focus, or just feel something.",
+      "Something to do with your hands. Somewhere for your mind to settle.",
     images: [shareImage],
   },
 };
