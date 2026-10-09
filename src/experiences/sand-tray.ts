@@ -112,11 +112,11 @@ void main() {
   vec2 p = gl_PointCoord * 2.0 - 1.0;
   float d = dot(p, p);
   if (d > 1.0) discard;
-  float light = smoothstep(1.0, 0.15, d);
-  vec3 sand = mix(vec3(0.45, 0.32, 0.16), vec3(0.86, 0.7, 0.4), vShade);
-  sand += vec3(0.25, 0.18, 0.08) * (1.0 - d) * 0.45;
-  float a = light * 0.95;
-  outColor = vec4(sand, a);
+  float rim = smoothstep(1.0, 0.55, d);
+  vec3 sand = mix(vec3(0.42, 0.3, 0.15), vec3(0.9, 0.74, 0.44), vShade);
+  sand *= 0.72 + rim * 0.38;
+  sand += vec3(0.22, 0.16, 0.07) * (1.0 - d) * 0.35;
+  outColor = vec4(sand, 1.0);
 }
 `;
 
@@ -196,7 +196,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.bindVertexArray(null);
 
-  const MAX = 4200;
+  const MAX = 5200;
   const grains: Grain[] = [];
   const drawData = new Float32Array(MAX * 4);
   const grainVao = gl.createVertexArray()!;
@@ -224,8 +224,11 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     dpr: gl.getUniformLocation(grainProg, "uDpr"),
   };
 
-  const COLS = 80;
-  const columns: number[][] = Array.from({ length: COLS }, () => []);
+  const CELL = 7;
+  let hashW = 64;
+  let hashH = 64;
+  const buckets: number[][] = [];
+  const contacts = new Uint8Array(MAX);
 
   function tray(): Tray {
     const margin = Math.min(64, w * 0.07);
@@ -255,13 +258,36 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
       y: y ?? (inAir ? -12 : t.floor - Math.random() * (t.floor - t.innerTop) * 0.45),
       vx: (Math.random() - 0.5) * (inAir ? 36 : 12),
       vy: inAir ? 70 + Math.random() * 50 : 0,
-      r: 1.6 + Math.random() * 1.5,
-      shade: 0.35 + Math.random() * 0.65,
+      r: 1.95 + Math.random() * 0.55,
+      shade: 0.28 + Math.random() * 0.72,
       alive: true,
     };
   }
 
   const SAND_SESSION_KEY = "palmstone:sand-tray-session";
+
+  function packBed(t: Tray) {
+    const baseR = 2.12;
+    const dx = baseR * 1.76;
+    const dy = baseR * 1.52;
+    const bedTop = t.floor - Math.min(132, (t.floor - t.innerTop) * 0.46);
+    let row = 0;
+    for (let y = t.floor - baseR; y > bedTop && grains.length < MAX; y -= dy, row++) {
+      const xOff = (row % 2) * dx * 0.5;
+      for (let x = t.innerLeft + baseR + 1 + xOff; x < t.innerRight - baseR - 1; x += dx) {
+        if (grains.length >= MAX) return;
+        grains.push({
+          x: x + (Math.random() - 0.5) * 0.28,
+          y: y + (Math.random() - 0.5) * 0.2,
+          vx: 0,
+          vy: 0,
+          r: 1.9 + Math.random() * 0.5,
+          shade: 0.28 + Math.random() * 0.72,
+          alive: true,
+        });
+      }
+    }
+  }
 
   function fillBed() {
     grains.length = 0;
@@ -276,19 +302,22 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
             y: g.y,
             vx: 0,
             vy: 0,
-            r: g.r,
+            r: Math.max(1.7, g.r),
             shade: g.shade,
             alive: true,
           });
         }
-        if (grains.length > 400) return;
+        if (grains.length > 500) {
+          relax(t, 10);
+          return;
+        }
       }
     } catch {
       /* ignore corrupt session sand */
     }
-    for (let i = grains.length; i < 1600; i++) grains.push(spawnGrain(t));
+    packBed(t);
+    relax(t, 12);
   }
-  fillBed();
 
   hud.toggle("Pouring", "Pour", true, (on) => {
     pouring = on;
@@ -354,10 +383,178 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
   window.addEventListener("pointerup", onUp);
   canvas.style.touchAction = "none";
 
-  function colOf(x: number, t: Tray) {
-    const u = (x - t.innerLeft) / Math.max(1, t.innerRight - t.innerLeft);
-    return Math.max(0, Math.min(COLS - 1, Math.floor(u * COLS)));
+  function confineGrain(g: Grain, t: Tray) {
+    const inMouth = g.x > t.mouthLeft && g.x < t.mouthRight;
+    const crossingLip = g.y > t.outerTop && g.y < t.innerTop + 8;
+    if (crossingLip && !inMouth) {
+      g.y = t.outerTop - g.r;
+      g.vy *= -0.15;
+      g.vx += g.x < t.mouthLeft ? -40 : 40;
+    }
+
+    const inside =
+      g.y >= t.innerTop && g.x > t.innerLeft - 4 && g.x < t.innerRight + 4;
+    if (inside) {
+      if (g.x < t.innerLeft + g.r) {
+        g.x = t.innerLeft + g.r;
+        g.vx = Math.abs(g.vx) * 0.2;
+      } else if (g.x > t.innerRight - g.r) {
+        g.x = t.innerRight - g.r;
+        g.vx = -Math.abs(g.vx) * 0.2;
+      }
+      if (g.y > t.floor - g.r) {
+        g.y = t.floor - g.r;
+        if (g.vy > 0) g.vy *= -0.08;
+        g.vx *= 0.72;
+        return true;
+      }
+    } else if (g.y > t.innerTop) {
+      if (g.x < t.outerLeft) {
+        g.x = t.outerLeft;
+        g.vx *= -0.3;
+      } else if (g.x > t.outerRight) {
+        g.x = t.outerRight;
+        g.vx *= -0.3;
+      }
+    }
+    return false;
   }
+
+  function rebuildHash(t: Tray) {
+    hashW = Math.max(12, Math.ceil(w / CELL) + 2);
+    hashH = Math.max(12, Math.ceil(h / CELL) + 2);
+    const n = hashW * hashH;
+    while (buckets.length < n) buckets.push([]);
+    for (let i = 0; i < n; i++) buckets[i].length = 0;
+    for (let i = 0; i < grains.length; i++) {
+      const g = grains[i];
+      if (!g.alive) continue;
+      const cx = Math.max(0, Math.min(hashW - 1, (g.x / CELL) | 0));
+      const cy = Math.max(0, Math.min(hashH - 1, (g.y / CELL) | 0));
+      buckets[cy * hashW + cx].push(i);
+    }
+    void t;
+  }
+
+  function separatePair(a: Grain, b: Grain) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const min = a.r + b.r;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > min * min || d2 < 1e-8) return false;
+    const dist = Math.sqrt(d2);
+    const overlap = min - dist;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const wa = b.r * b.r;
+    const wb = a.r * a.r;
+    const sum = wa + wb;
+    // Positional correction only — avoid injecting velocity when nearly settled.
+    a.x -= nx * overlap * (wa / sum);
+    a.y -= ny * overlap * (wa / sum);
+    b.x += nx * overlap * (wb / sum);
+    b.y += ny * overlap * (wb / sum);
+    const rvx = a.vx - b.vx;
+    const rvy = a.vy - b.vy;
+    const vn = rvx * nx + rvy * ny;
+    const slow = Math.abs(a.vx) + Math.abs(a.vy) + Math.abs(b.vx) + Math.abs(b.vy) < 40;
+    if (vn > 0) {
+      const rest = vn * (slow ? 0.92 : 0.55);
+      a.vx -= rest * nx;
+      a.vy -= rest * ny;
+      b.vx += rest * nx;
+      b.vy += rest * ny;
+    }
+    if (!slow) {
+      const tx = -ny;
+      const ty = nx;
+      const vt = rvx * tx + rvy * ty;
+      const friction = vt * 0.22;
+      a.vx -= friction * tx;
+      a.vy -= friction * ty;
+      b.vx += friction * tx;
+      b.vy += friction * ty;
+    } else {
+      a.vx *= 0.5;
+      a.vy *= 0.5;
+      b.vx *= 0.5;
+      b.vy *= 0.5;
+    }
+    return true;
+  }
+
+  function collideGrains() {
+    for (let i = 0; i < grains.length; i++) {
+      const g = grains[i];
+      if (!g.alive) continue;
+      const cx = Math.max(0, Math.min(hashW - 1, (g.x / CELL) | 0));
+      const cy = Math.max(0, Math.min(hashH - 1, (g.y / CELL) | 0));
+      for (let oy = -1; oy <= 1; oy++) {
+        const ry = cy + oy;
+        if (ry < 0 || ry >= hashH) continue;
+        for (let ox = -1; ox <= 1; ox++) {
+          const rx = cx + ox;
+          if (rx < 0 || rx >= hashW) continue;
+          const cell = buckets[ry * hashW + rx];
+          for (let k = 0; k < cell.length; k++) {
+            const j = cell[k];
+            if (j <= i) continue;
+            if (separatePair(g, grains[j])) {
+              contacts[i] = 1;
+              contacts[j] = 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function avalanche(t: Tray) {
+    const repose = 1.35;
+    for (let i = 0; i < grains.length; i++) {
+      if (!contacts[i]) continue;
+      const g = grains[i];
+      if (g.y < t.innerTop || Math.abs(g.vy) > 90) continue;
+      const cx = Math.max(0, Math.min(hashW - 1, (g.x / CELL) | 0));
+      const cy = Math.max(0, Math.min(hashH - 1, (g.y / CELL) | 0));
+      let supportL = 0;
+      let supportR = 0;
+      for (let oy = 0; oy <= 1; oy++) {
+        const ry = cy + oy;
+        if (ry < 0 || ry >= hashH) continue;
+        for (let ox = -1; ox <= 1; ox++) {
+          const rx = cx + ox;
+          if (rx < 0 || rx >= hashW) continue;
+          const cell = buckets[ry * hashW + rx];
+          for (let k = 0; k < cell.length; k++) {
+            const o = grains[cell[k]];
+            if (o === g) continue;
+            const dx = o.x - g.x;
+            const dy = o.y - g.y;
+            if (dy < g.r * 0.15 || Math.abs(dx) > g.r * 2.2) continue;
+            if (dx < 0) supportL += 1;
+            else supportR += 1;
+          }
+        }
+      }
+      const floorSupport = g.y > t.floor - g.r * 1.35;
+      if (floorSupport) continue;
+      if (supportL + supportR < 1) continue;
+      if (supportL > supportR * repose) g.vx += 28;
+      else if (supportR > supportL * repose) g.vx -= 28;
+    }
+  }
+
+  function relax(t: Tray, iters: number) {
+    for (let n = 0; n < iters; n++) {
+      contacts.fill(0);
+      rebuildHash(t);
+      collideGrains();
+      for (let i = 0; i < grains.length; i++) confineGrain(grains[i], t);
+    }
+  }
+
+  fillBed();
 
   function deepestIndex(t: Tray) {
     let best = -1;
@@ -377,7 +574,8 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
     update(dt: number) {
       time += dt;
       const t = tray();
-      const damp = Math.pow(0.9, dt * 60);
+      const airDamp = Math.pow(0.992, dt * 60);
+      const restDamp = Math.pow(0.78, dt * 60);
       pvx = (px - lastPx) / Math.max(dt, 0.001);
       pvy = (py - lastPy) / Math.max(dt, 0.001);
       lastPx = px;
@@ -411,8 +609,17 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
 
       const brushR = 52;
       let moved = 0;
-      for (const grain of grains) {
-        grain.vy += 520 * dt;
+      contacts.fill(0);
+      const disturb = pointerDown || pouring;
+      for (let i = 0; i < grains.length; i++) {
+        const grain = grains[i];
+        const asleep =
+          !disturb &&
+          grain.vx === 0 &&
+          grain.vy === 0 &&
+          grain.y > t.innerTop + grain.r;
+        if (asleep) continue;
+        grain.vy += 760 * dt;
         if (pointerDown) {
           const dx = grain.x - px;
           const dy = grain.y - py;
@@ -425,67 +632,51 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
             moved += push;
           }
         }
-        grain.vx *= damp;
-        grain.vy *= damp;
+        grain.vx *= airDamp;
+        grain.vy *= airDamp;
         grain.x += grain.vx * dt;
         grain.y += grain.vy * dt;
-
-        const inMouth = grain.x > t.mouthLeft && grain.x < t.mouthRight;
-        const crossingLip = grain.y > t.outerTop && grain.y < t.innerTop + 8;
-        if (crossingLip && !inMouth) {
-          grain.y = t.outerTop - grain.r;
-          grain.vy *= -0.2;
-          grain.vx += grain.x < t.mouthLeft ? -40 : 40;
-        }
-
-        const inside =
-          grain.y >= t.innerTop &&
-          grain.x > t.innerLeft - 4 &&
-          grain.x < t.innerRight + 4;
-        if (inside) {
-          if (grain.x < t.innerLeft + grain.r) {
-            grain.x = t.innerLeft + grain.r;
-            grain.vx = Math.abs(grain.vx) * 0.25;
-          } else if (grain.x > t.innerRight - grain.r) {
-            grain.x = t.innerRight - grain.r;
-            grain.vx = -Math.abs(grain.vx) * 0.25;
-          }
-          if (grain.y > t.floor - grain.r) {
-            grain.y = t.floor - grain.r;
-            grain.vy *= -0.12;
-            grain.vx *= 0.7;
-          }
-        } else if (grain.y > t.innerTop) {
-          if (grain.x < t.outerLeft) {
-            grain.x = t.outerLeft;
-            grain.vx *= -0.3;
-          } else if (grain.x > t.outerRight) {
-            grain.x = t.outerRight;
-            grain.vx *= -0.3;
-          }
-        }
       }
 
-      for (const col of columns) col.length = 0;
-      for (let i = 0; i < grains.length; i++) {
-        const g = grains[i];
-        if (g.y < t.innerTop || g.x < t.innerLeft || g.x > t.innerRight) continue;
-        columns[colOf(g.x, t)].push(i);
-      }
-      for (const col of columns) {
-        col.sort((a, b) => grains[b].y - grains[a].y);
-        let surface = t.floor;
-        for (const idx of col) {
-          const g = grains[idx];
-          if (g.vy > 180) continue;
-          const rest = surface - g.r;
-          if (g.y > rest) {
-            g.y = rest;
-            g.vy *= 0.05;
-            g.vx *= 0.82;
+      // Fewer collision passes when idle — resting piles shouldn't churn.
+      if (disturb) {
+        const iters = pointerDown ? 4 : 3;
+        for (let n = 0; n < iters; n++) {
+          rebuildHash(t);
+          collideGrains();
+          for (let i = 0; i < grains.length; i++) {
+            if (confineGrain(grains[i], t)) contacts[i] = 1;
           }
-          surface = Math.min(surface, g.y - g.r * 0.55);
-          if (surface < t.innerTop + 8) surface = t.innerTop + 8;
+        }
+        avalanche(t);
+        for (let i = 0; i < grains.length; i++) {
+          const g = grains[i];
+          if (!contacts[i]) continue;
+          g.vx *= restDamp;
+          g.vy *= restDamp;
+          if (Math.abs(g.vx) < 8) g.vx = 0;
+          if (Math.abs(g.vy) < 10) g.vy = 0;
+        }
+      } else {
+        // Idle: one soft settle pass only for grains that still have velocity.
+        let anyAwake = false;
+        for (let i = 0; i < grains.length; i++) {
+          if (grains[i].vx !== 0 || grains[i].vy !== 0) {
+            anyAwake = true;
+            break;
+          }
+        }
+        if (anyAwake) {
+          rebuildHash(t);
+          collideGrains();
+          for (let i = 0; i < grains.length; i++) {
+            confineGrain(grains[i], t);
+            const g = grains[i];
+            g.vx *= restDamp;
+            g.vy *= restDamp;
+            if (Math.abs(g.vx) < 8) g.vx = 0;
+            if (Math.abs(g.vy) < 10) g.vy = 0;
+          }
         }
       }
 
@@ -518,7 +709,7 @@ function mount(ctx: WebGLExperienceContext): ExperienceHandle {
         const o = n * 4;
         drawData[o] = g.x;
         drawData[o + 1] = g.y;
-        drawData[o + 2] = g.r * 2.4;
+        drawData[o + 2] = g.r * 2.08;
         drawData[o + 3] = g.shade;
         n += 1;
       }

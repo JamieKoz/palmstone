@@ -1,4 +1,5 @@
 import { LandingCTA } from "@/components/LandingCTA";
+import { LandingPromise } from "@/components/LandingPromise";
 import { LandingShowcase } from "@/components/LandingShowcase";
 import { StandaloneEntry } from "@/components/StandaloneEntry";
 
@@ -19,6 +20,7 @@ export default function HomePage() {
         <div className="landing-hero__copy">
           <h1 className="landing-hero__title">Palmstone</h1>
           <p className="landing-hero__line">Something to do with your hands.</p>
+          <LandingPromise />
           <LandingCTA />
         </div>
 

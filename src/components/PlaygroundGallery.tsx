@@ -3,49 +3,60 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AddToHome } from "@/components/AddToHome";
-import { ExperiencePickTile } from "@/components/ExperiencePickTile";
+import { ExperiencePickTile, StoneHeart } from "@/components/ExperiencePickTile";
 import { ExperienceThumb } from "@/components/ExperienceThumb";
-import { SoundLevelToggle } from "@/components/SoundLevelToggle";
+import { MusicWaveToggle } from "@/components/MusicWaveToggle";
+import { SfxToggle } from "@/components/SfxToggle";
 import { navigateWithCoverWipe, PageRevealWipe } from "@/components/PageRevealWipe";
 import { onExperienceNavClick, playUiClick } from "@/components/SiteAudio";
 import { TRAY_GROUPS, experiencesInGroup, getMeta } from "@/engine/catalog";
-import { recommendForYou } from "@/engine/recommend";
+import { getReturnCue, recommendForYou } from "@/engine/recommend";
 import {
+  FAVOURITES_EVENT,
   getFavourites,
   getRecents,
   hasStrongAffinity,
   topAffinityIds,
 } from "@/engine/storage";
 import type { ExperienceMeta } from "@/engine/types";
+import { hasWorldState } from "@/engine/worldState";
 
 export function PlaygroundGallery() {
   const router = useRouter();
   const pressId = useRef<string | null>(null);
 
+  // Read favourites after mount — useSyncExternalStore + getServerSnapshot("[]")
+  // was stuck empty on this static-export gallery (localStorage had ids, no hearts).
   const [favs, setFavs] = useState<string[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
   const [forYou, setForYou] = useState<ExperienceMeta[]>([]);
   const [lovedNames, setLovedNames] = useState<string[]>([]);
+  const [returnLine, setReturnLine] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setFavs(getFavourites());
-      setRecents(getRecents());
-      setForYou(recommendForYou(3));
-      setLovedNames(
-        topAffinityIds(2)
-          .map((id) => getMeta(id)?.name)
-          .filter((name): name is string => !!name),
-      );
-      setReady(true);
-    });
+    const syncFavs = () => setFavs(getFavourites());
+    syncFavs();
+    window.addEventListener("storage", syncFavs);
+    window.addEventListener(FAVOURITES_EVENT, syncFavs);
     return () => {
-      cancelled = true;
+      window.removeEventListener("storage", syncFavs);
+      window.removeEventListener(FAVOURITES_EVENT, syncFavs);
     };
+  }, []);
+
+  useEffect(() => {
+    setRecents(getRecents());
+    setForYou(recommendForYou(3));
+    setLovedNames(
+      topAffinityIds(2)
+        .map((id) => getMeta(id)?.name)
+        .filter((name): name is string => !!name),
+    );
+    const live = TRAY_GROUPS.flatMap((g) => g.ids).some((exp) => hasWorldState(exp));
+    const cue = getReturnCue();
+    if (cue && (live || getRecents().length > 0)) setReturnLine(cue.line);
+    setReady(true);
   }, []);
 
   const groups = TRAY_GROUPS.map((group) => ({
@@ -57,11 +68,13 @@ export function PlaygroundGallery() {
 
   const subtitle = !ready
     ? "Brush a stone. Press to settle."
-    : lovedNames.length === 1
-      ? `You keep coming back to ${lovedNames[0]}.`
-      : lovedNames.length > 1
-        ? `You keep coming back to ${lovedNames[0]} and ${lovedNames[1]}.`
-        : "Brush a stone. Press to settle.";
+    : returnLine
+      ? returnLine
+      : lovedNames.length === 1
+        ? `You keep coming back to ${lovedNames[0]}.`
+        : lovedNames.length > 1
+          ? `You keep coming back to ${lovedNames[0]} and ${lovedNames[1]}.`
+          : "Brush a stone. Press to settle.";
 
   const settle = useCallback(
     (exp: ExperienceMeta) => {
@@ -71,11 +84,9 @@ export function PlaygroundGallery() {
     [router],
   );
 
-  const favouriteMetas = ready
-    ? favs
-        .map((id) => getMeta(id))
-        .filter((m): m is ExperienceMeta => !!m)
-    : [];
+  const favouriteMetas = favs
+    .map((id) => getMeta(id))
+    .filter((m): m is ExperienceMeta => !!m);
 
   // Hide For you until affinity is real, and skip stones already in favourites / continue.
   const forYouVisible =
@@ -104,7 +115,10 @@ export function PlaygroundGallery() {
                 <Link href="/" onClick={() => playUiClick()} className="nav-home">
                   Home
                 </Link>
-                <SoundLevelToggle variant="wave" className="sound-wave-btn--gallery" />
+                <div className="gallery-audio">
+                  <MusicWaveToggle className="sound-wave-btn--gallery" />
+                  <SfxToggle />
+                </div>
               </div>
             </div>
             <p className="gallery-header__subtitle">{subtitle}</p>
@@ -129,7 +143,6 @@ export function PlaygroundGallery() {
               >
                 What do you need?
               </Link>
-              <AddToHome />
             </div>
           </header>
 
@@ -141,7 +154,7 @@ export function PlaygroundGallery() {
                   <ExperiencePickTile
                     key={exp.id}
                     meta={exp}
-                    badge="♡"
+                    kept
                     onClick={() => settle(exp)}
                   />
                 ))}
@@ -164,6 +177,7 @@ export function PlaygroundGallery() {
             {groups.map(({ group, items }) => (
               <section key={group.id} className="tray-group" aria-label={group.name}>
                 <h2 className="tray-group__name">{group.name}</h2>
+                {group.note ? <p className="tray-group__note">{group.note}</p> : null}
                 <div className="tray-group__stones">
                   {items.map((exp) => {
                     const kept = favs.includes(exp.id);
@@ -172,7 +186,7 @@ export function PlaygroundGallery() {
                         key={exp.id}
                         type="button"
                         className={["tray-stone", kept ? "is-kept" : ""].filter(Boolean).join(" ")}
-                        aria-label={exp.name}
+                        aria-label={kept ? `${exp.name}, favourite` : exp.name}
                         onPointerDown={() => {
                           pressId.current = exp.id;
                         }}
@@ -185,6 +199,7 @@ export function PlaygroundGallery() {
                       >
                         <span className="tray-stone__face">
                           <ExperienceThumb id={exp.id} />
+                          {kept ? <StoneHeart /> : null}
                         </span>
                         <span className="tray-stone__name">{exp.name}</span>
                       </button>

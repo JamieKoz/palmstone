@@ -12,20 +12,22 @@ import { topRecommendation } from "@/engine/recommend";
 import { setLastNeed } from "@/engine/storage";
 import type { ExperienceId, ExperienceMeta } from "@/engine/types";
 
-const MOODS: Exclude<Need, "explore">[] = ["settle", "focus", "stimulate", "hands"];
+const MOODS: Exclude<Need, "explore">[] = ["settle", "focus", "stimulate", "hands", "worlds"];
 
 const NEED_THUMBS: Record<Exclude<Need, "explore">, ExperienceId> = {
   settle: "sand-tray",
-  focus: "silk-fluid",
+  focus: "slider-loom",
   stimulate: "keyboard-thock",
-  hands: "fidget-cube",
+  hands: "pen-clicker",
+  worlds: "infinite-garden",
 };
 
 const NEED_LINES: Record<Exclude<Need, "explore">, string> = {
   settle: "Slow the edges",
   focus: "A quiet loop",
-  stimulate: "Something that answers back",
-  hands: "Keep your fingers occupied",
+  stimulate: "Sound, haptics, lively punch",
+  hands: "A repetitive thing in the fingers",
+  worlds: "Keep going",
 };
 
 type Props = {
@@ -105,7 +107,7 @@ export function NeedPicker({ title = "What do you need?", onPick }: Props) {
         className="need-picker__explore need-enter"
         style={{ ["--need-i" as string]: MOODS.length + 2 }}
       >
-        Explore the tray
+        Explore
       </Link>
     </section>
   );

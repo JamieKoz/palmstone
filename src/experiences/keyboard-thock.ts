@@ -138,24 +138,8 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
   turn.hidden = true;
   turn.setAttribute("role", "status");
   turn.innerHTML =
-    '<span class="kb-turn__phone" aria-hidden="true"></span><p>Sideways feels better — or just play</p><button type="button" class="kb-turn__dismiss">Got it</button>';
+    '<span class="kb-turn__phone" aria-hidden="true"></span><p>Turn your phone sideways</p>';
   ctx.host.appendChild(turn);
-  let tipDismissed = false;
-  try {
-    tipDismissed = sessionStorage.getItem("palmstone:kbTip") === "1";
-  } catch {
-    /* private mode */
-  }
-  turn.querySelector(".kb-turn__dismiss")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    tipDismissed = true;
-    turn.hidden = true;
-    try {
-      sessionStorage.setItem("palmstone:kbTip", "1");
-    } catch {
-      /* quota */
-    }
-  });
 
   const portraitQuery =
     typeof window !== "undefined"
@@ -207,8 +191,9 @@ function mount(ctx: ExperienceContext): ExperienceHandle {
     bars.length = 0;
     sparks.length = 0;
     seedMotes();
-    // Soft tip in portrait — never block the board.
-    turn.hidden = tipDismissed || !phonePortrait();
+    const turned = phonePortrait();
+    turn.hidden = !turned;
+    if (turned) return;
 
     const frame = visibleFrame();
     const chromeTop = 52;

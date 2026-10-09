@@ -1,6 +1,8 @@
 import type { Need } from "./needs";
 
 const FAV_KEY = "palmstone:favourites";
+/** Same-tab signal — `storage` events only fire across windows. */
+export const FAVOURITES_EVENT = "palmstone:favourites";
 const MUTE_KEY = "palmstone:muted";
 const MUSIC_MUTE_KEY = "palmstone:musicMuted";
 const HAP_KEY = "palmstone:haptics";
@@ -24,6 +26,9 @@ export type SessionRecord = {
   completed: boolean;
   feedback: SessionFeedback | null;
   hour: number;
+  soundLevel: SoundLevel | null;
+  hapticsOn: boolean;
+  interactions: number;
 };
 
 export type SoundLevel = "off" | "soft" | "immersive";
@@ -62,6 +67,9 @@ export function toggleFavourite(id: string): boolean {
   else set.add(id);
   const next = Array.from(set);
   writeJson(FAV_KEY, next);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(FAVOURITES_EVENT));
+  }
   return set.has(id);
 }
 
@@ -200,6 +208,16 @@ export function recordPointerBurst(
   stats.holdMs += burst.holdMs;
   stats.dragPx += burst.dragPx;
   writeProfile(profile);
+  if (burst.downs > 0) {
+    const active = getActiveSessionId();
+    if (active) {
+      const log = readSessionLog();
+      const row = log.find((r) => r.id === active);
+      if (row) {
+        patchSessionRecord(active, { interactions: (row.interactions ?? 0) + burst.downs });
+      }
+    }
+  }
 }
 
 export type FeelBias = "calm" | "lively";
@@ -233,7 +251,14 @@ export function gravityFromFeel(): number {
 
 export function getLastNeed(): Need | null {
   const raw = readJson<string | null>(LAST_NEED_KEY, null);
-  if (raw === "settle" || raw === "focus" || raw === "stimulate" || raw === "hands" || raw === "explore") {
+  if (
+    raw === "settle" ||
+    raw === "focus" ||
+    raw === "stimulate" ||
+    raw === "hands" ||
+    raw === "worlds" ||
+    raw === "explore"
+  ) {
     return raw;
   }
   return null;
@@ -287,6 +312,9 @@ export function startSessionRecord(
     completed: false,
     feedback: null,
     hour: new Date().getHours(),
+    soundLevel: getSoundLevel(),
+    hapticsOn: getHapticsPref(),
+    interactions: 0,
   };
   writeJson(ACTIVE_SESSION_KEY, id);
   const log = readSessionLog();
@@ -300,7 +328,7 @@ export function getActiveSessionId(): string | null {
 
 export function patchSessionRecord(
   sessionId: string,
-  patch: Partial<Pick<SessionRecord, "durationMs" | "completed" | "feedback">>,
+  patch: Partial<Pick<SessionRecord, "durationMs" | "completed" | "feedback" | "soundLevel" | "hapticsOn" | "interactions">>,
 ) {
   const log = readSessionLog();
   const next = log.map((row) => (row.id === sessionId ? { ...row, ...patch } : row));

@@ -1,30 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { NeedPicker } from "@/components/NeedPicker";
 import { NeedShortlist } from "@/components/NeedShortlist";
 import { PlaygroundGallery } from "@/components/PlaygroundGallery";
 import { PlaygroundShell } from "@/components/PlaygroundShell";
+import { useBrowserSearchParams } from "@/components/useBrowserSearchParams";
 import { parseNeed } from "@/engine/needs";
 
 /**
  * Static export pre-renders `/playground/` once. Query routes (`?need=…`) only
- * exist in the browser. Suspense + useSearchParams means the server HTML is the
- * fallback — first client paint must match it, then we route after mount.
+ * exist in the browser — read them from the URL after paint, never via
+ * `useSearchParams()` (that hook suspends forever on exported HTML).
  */
-function PlaygroundRouterInner() {
-  const params = useSearchParams();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return <PlaygroundRouteFallback />;
-  }
-
+export function PlaygroundRouter() {
+  const params = useBrowserSearchParams();
   const needRaw = params.get("need");
   const need = parseNeed(needRaw);
 
@@ -45,21 +34,4 @@ function PlaygroundRouterInner() {
   }
 
   return <PlaygroundGallery />;
-}
-
-function PlaygroundRouteFallback() {
-  return (
-    <div className="relative min-h-dvh">
-      <div className="atmosphere" aria-hidden />
-      <div className="grain-overlay" aria-hidden />
-    </div>
-  );
-}
-
-export function PlaygroundRouter() {
-  return (
-    <Suspense fallback={<PlaygroundRouteFallback />}>
-      <PlaygroundRouterInner />
-    </Suspense>
-  );
 }

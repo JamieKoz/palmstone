@@ -1,12 +1,13 @@
-export type Need = "settle" | "focus" | "stimulate" | "hands" | "explore";
+export type Need = "settle" | "focus" | "stimulate" | "hands" | "worlds" | "explore";
 
-export const NEEDS: Need[] = ["settle", "focus", "stimulate", "hands", "explore"];
+export const NEEDS: Need[] = ["settle", "focus", "stimulate", "hands", "worlds", "explore"];
 
 export const NEED_LABELS: Record<Need, string> = {
   settle: "Settle",
   focus: "Focus",
   stimulate: "Stimulate",
   hands: "Hands busy",
+  worlds: "Worlds",
   explore: "Explore",
 };
 
@@ -16,12 +17,14 @@ export const NEED_DEFAULT_MINUTES: Record<Exclude<Need, "explore">, number> = {
   focus: 10,
   stimulate: 2,
   hands: 5,
+  worlds: 15,
 };
 
 export const TIMER_PRESETS = [
   { minutes: 2, label: "Quick reset" },
   { minutes: 5, label: "Settle" },
   { minutes: 10, label: "Focus" },
+  { minutes: 15, label: "Keep going" },
   { minutes: 20, label: "Deep calm" },
 ] as const;
 

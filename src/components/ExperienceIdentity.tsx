@@ -22,8 +22,27 @@ type Props = {
   onBegin: () => void;
 };
 
+function sensoryChips(meta: ExperienceMeta): string[] {
+  const chips: string[] = [];
+  if (meta.layer === "world") chips.push(meta.infinite ? "Keeps going" : "World");
+  else if (meta.layer === "environment") chips.push("Place");
+  else chips.push("Object");
+  chips.push(meta.speed === "slow" ? "Slow" : meta.speed === "fast" ? "Fast" : "Steady");
+  chips.push(
+    meta.predictability === "high"
+      ? "Predictable"
+      : meta.predictability === "low"
+        ? "Chaotic"
+        : "Open",
+  );
+  chips.push(meta.cognitive === "low" ? "Mindless" : meta.cognitive === "high" ? "Engaging" : "Steady mind");
+  if (meta.sensory.control >= 3) chips.push("Hands-on");
+  return chips;
+}
+
 export function ExperienceIdentity({ meta, sessionMinutes, onBegin }: Props) {
-  const ariaLabel = `${meta.name}. ${meta.feel}${
+  const chips = sensoryChips(meta);
+  const ariaLabel = `${meta.name}. ${meta.feel}. ${chips.join(", ")}${
     sessionMinutes != null ? `. About ${sessionMinutes} minutes.` : ""
   }`;
 
@@ -39,6 +58,11 @@ export function ExperienceIdentity({ meta, sessionMinutes, onBegin }: Props) {
           <SensoryMeter label="Visual" level={meta.sensory.visual} />
           <SensoryMeter label="Sound" level={meta.sensory.audio} />
           <SensoryMeter label="Touch" level={meta.sensory.haptic} />
+        </span>
+        <span className="identity-pick__chips">
+          {chips.map((chip) => (
+            <span key={chip}>{chip}</span>
+          ))}
         </span>
         {meta.hapticBest ? <span className="identity-pick__haptic">Best with haptics</span> : null}
         <span className="identity-pick__cta">

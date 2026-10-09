@@ -6,11 +6,51 @@ const CATALOG_BASE = [
     id: "mesh-lattice",
     name: "Mesh Lattice",
     collection: "field",
-    modality: "WebGL",
+    modality: "Music",
     tagline: "Fidget with the lattice while a song moves through it.",
     hint: "Search a song for a 30s preview, or drag to orbit. Best with sound on.",
     accent: "#6db8b0",
-    badge: "WebGL",
+    badge: "Music",
+  },
+  {
+    id: "infinite-garden",
+    name: "Infinite Garden",
+    collection: "field",
+    modality: "Growth",
+    tagline: "A full zen pond — moss, water, and slow growth filling the view.",
+    hint: "Drag the banks to sow. Tap the water for a lily. Drag a plant to whittle.",
+    accent: "#7f9e6a",
+    badge: "World",
+  },
+  {
+    id: "infinite-sand",
+    name: "Infinite Sand",
+    collection: "field",
+    modality: "Terrain",
+    tagline: "Every gesture changes the dunes. The terrain stays.",
+    hint: "Drag to pile and rake. The field never resets.",
+    accent: "#c4a574",
+    badge: "World",
+  },
+  {
+    id: "infinite-water",
+    name: "Rain Glass",
+    collection: "field",
+    modality: "Rain",
+    tagline: "Rain beads on glass — cling, slide, merge, race.",
+    hint: "Tiny drops cling. Bigger ones slide and catch others. Drag sideways or down.",
+    accent: "#6a9fb5",
+    badge: "World",
+  },
+  {
+    id: "infinite-marble",
+    name: "Infinite Marble",
+    collection: "field",
+    modality: "Path",
+    tagline: "Draw a run. Drop marbles. Keep adding track.",
+    hint: "Drag to draw a rail. Tap to drop a marble.",
+    accent: "#8aa4c8",
+    badge: "World",
   },
   {
     id: "sand-tray",
@@ -170,15 +210,6 @@ const CATALOG_BASE = [
     accent: "#6a9aaa",
   },
   {
-    id: "fidget-cube",
-    name: "Fidget Cube",
-    collection: "studio",
-    modality: "Fidget",
-    tagline: "Turn the cube. Each face is its own fidget.",
-    hint: "Drag to turn it. Play the face that lands toward you.",
-    accent: "#c45a4a",
-  },
-  {
     id: "fidget-spinner",
     name: "Fidget Spinner",
     collection: "studio",
@@ -215,34 +246,49 @@ export const MODALITIES = Array.from(new Set(CATALOG.map((e) => e.modality)));
 export type TrayGroup = {
   id: string;
   name: string;
+  note?: string;
   ids: ExperienceId[];
 };
 
-/** Flagships first in each cluster. One-note desk toys sit at the end. */
+/**
+ * Three layers: generative worlds (the runway), environments, then objects.
+ * Mesh Lattice leads Worlds — music + visualisation + hands.
+ */
 export const TRAY_GROUPS: TrayGroup[] = [
   {
-    id: "fields",
-    name: "Fields",
-    ids: ["silk-fluid", "sand-tray", "ripple-pool", "mesh-lattice"],
+    id: "worlds",
+    name: "Worlds",
+    note: "They keep going. Come back — they’re still here.",
+    ids: [
+      "mesh-lattice",
+      "infinite-garden",
+      "infinite-sand",
+      "infinite-water",
+      "infinite-marble",
+    ],
   },
   {
-    id: "motion",
-    name: "In motion",
+    id: "environments",
+    name: "Environments",
+    note: "A place to be, not a thing to finish.",
     ids: [
-      "gear-mesh",
-      "elastic-web",
+      "silk-fluid",
+      "sand-tray",
+      "ripple-pool",
       "magnetic-field",
+      "elastic-web",
+      "gear-mesh",
       "slider-loom",
       "stone-polish",
       "orbit-beads",
     ],
   },
   {
-    id: "desk",
-    name: "On the desk",
+    id: "objects",
+    name: "Objects",
+    note: "One satisfying thing in the hand.",
     ids: [
       "keyboard-thock",
-      "fidget-cube",
       "bubble-wrap",
       "zipper",
       "fidget-spinner",

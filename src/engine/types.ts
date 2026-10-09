@@ -13,13 +13,16 @@ export type ExperienceId =
   | "ripple-pool"
   | "slider-loom"
   | "mesh-lattice"
+  | "infinite-garden"
+  | "infinite-sand"
+  | "infinite-water"
+  | "infinite-marble"
   | "pen-clicker"
   | "light-switch"
   | "keyboard-thock"
   | "mouse-click"
   | "big-button"
   | "bubble-wrap"
-  | "fidget-cube"
   | "fidget-spinner"
   | "zipper"
   | "lamp-toggle";
@@ -133,6 +136,10 @@ export type ExperienceSensory = {
   visual: SensoryLevel;
   audio: SensoryLevel;
   haptic: SensoryLevel;
+  /** How loopable / repeat-friendly the gesture is. */
+  repetition: SensoryLevel;
+  /** 1 = mostly watch, 3 = hands-on construction. */
+  control: SensoryLevel;
 };
 
 export interface ExperienceMetaCore {
@@ -156,6 +163,8 @@ export interface ExperienceMeta extends ExperienceMetaCore {
   predictability: "high" | "medium" | "low";
   cognitive: "low" | "medium" | "high";
   hapticBest?: boolean;
+  /** Worlds that keep evolving after you leave. */
+  infinite?: boolean;
 }
 
 export interface PixiExperienceModule extends ExperienceMetaCore {

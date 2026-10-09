@@ -46,7 +46,6 @@ Mesh Lattice song search uses [Deezer’s free search API](https://developers.de
 | Mouse Click | On the desk |
 | Big Button | On the desk |
 | Bubble Wrap | On the desk |
-| Fidget Cube | On the desk |
 | Fidget Spinner | On the desk |
 | Zipper | On the desk |
 | Pulse Pads | On the desk |

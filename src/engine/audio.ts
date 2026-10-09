@@ -34,6 +34,12 @@ export type SharedAudio = AudioBus & {
   lampToggle: (on: boolean, intensity?: number) => void;
   water: (intensity?: number) => void;
   silk: (intensity?: number) => void;
+  /** Looping ambient rain bed (SFX bus — respects mute / Soft vs Immersive). */
+  startRain: (gain?: number) => Promise<void>;
+  stopRain: () => void;
+  /** Looping zen garden soundtrack (music bus — respects music mute). */
+  startGarden: (gain?: number) => Promise<void>;
+  stopGarden: () => void;
 };
 
 let shared: SharedAudio | null = null;
@@ -152,6 +158,18 @@ export function getSharedAudio(): SharedAudio {
   let samplesLoad: Promise<void> | null = null;
   let zipLoopSrc: AudioBufferSourceNode | null = null;
   let zipLoopGain: GainNode | null = null;
+  let rainBuffer: AudioBuffer | null = null;
+  let rainLoad: Promise<AudioBuffer | null> | null = null;
+  let rainLoopSrc: AudioBufferSourceNode | null = null;
+  let rainLoopGain: GainNode | null = null;
+  let rainWanted = false;
+  let rainGainAmt = 0.32;
+  let gardenBuffer: AudioBuffer | null = null;
+  let gardenLoad: Promise<AudioBuffer | null> | null = null;
+  let gardenLoopSrc: AudioBufferSourceNode | null = null;
+  let gardenLoopGain: GainNode | null = null;
+  let gardenWanted = false;
+  let gardenGainAmt = 0.38;
 
   function assetUrl(path: string) {
     const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -901,6 +919,165 @@ export function getSharedAudio(): SharedAudio {
     }
   }
 
+  async function loadRainTrack(): Promise<AudioBuffer | null> {
+    if (rainBuffer) return rainBuffer;
+    if (rainLoad) return rainLoad;
+    rainLoad = (async () => {
+      const c = ensure();
+      if (!c) return null;
+      try {
+        const res = await fetch(assetUrl("/audio/sfx/rain.mp3"));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.arrayBuffer();
+        rainBuffer = await c.decodeAudioData(data.slice(0));
+        return rainBuffer;
+      } catch (err) {
+        console.warn("Failed to load rain SFX", err);
+        rainLoad = null;
+        return null;
+      }
+    })();
+    return rainLoad;
+  }
+
+  function stopRainInternal() {
+    if (rainLoopGain) {
+      const t = now();
+      try {
+        rainLoopGain.gain.cancelScheduledValues(t);
+        rainLoopGain.gain.setValueAtTime(Math.max(0.0001, rainLoopGain.gain.value), t);
+        rainLoopGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+      } catch {
+        /* */
+      }
+    }
+    const src = rainLoopSrc;
+    rainLoopSrc = null;
+    rainLoopGain = null;
+    if (src) {
+      window.setTimeout(() => {
+        try {
+          src.stop();
+          src.disconnect();
+        } catch {
+          /* */
+        }
+      }, 280);
+    }
+  }
+
+  async function startRain(gain = 0.32) {
+    rainWanted = true;
+    rainGainAmt = Math.max(0.05, Math.min(1, gain));
+    await resumeCtx();
+    const buf = await loadRainTrack();
+    if (!rainWanted || !buf) return;
+    if (rainLoopSrc && rainLoopGain) {
+      rainLoopGain.gain.setValueAtTime(rainGainAmt, now());
+      return;
+    }
+    const c = ensure();
+    const m = out();
+    if (!c || !m) return;
+    stopRainInternal();
+    rainLoopGain = c.createGain();
+    rainLoopGain.gain.value = rainGainAmt;
+    rainLoopGain.connect(m);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.connect(rainLoopGain);
+    src.start();
+    rainLoopSrc = src;
+  }
+
+  function stopRain() {
+    rainWanted = false;
+    stopRainInternal();
+  }
+
+  async function loadGardenTrack() {
+    if (gardenBuffer) return gardenBuffer;
+    if (gardenLoad) return gardenLoad;
+    gardenLoad = (async () => {
+      const c = ensure();
+      if (!c) return null;
+      try {
+        const res = await fetch(assetUrl("/audio/sfx/zen-garden.mp3"));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.arrayBuffer();
+        gardenBuffer = await c.decodeAudioData(data.slice(0));
+        return gardenBuffer;
+      } catch (err) {
+        console.warn("Failed to load zen garden soundtrack", err);
+        gardenLoad = null;
+        return null;
+      }
+    })();
+    return gardenLoad;
+  }
+
+  function stopGardenInternal() {
+    if (gardenLoopGain) {
+      const t = now();
+      try {
+        gardenLoopGain.gain.cancelScheduledValues(t);
+        gardenLoopGain.gain.setValueAtTime(Math.max(0.0001, gardenLoopGain.gain.value), t);
+        gardenLoopGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      } catch {
+        /* */
+      }
+    }
+    const src = gardenLoopSrc;
+    gardenLoopSrc = null;
+    gardenLoopGain = null;
+    if (src) {
+      window.setTimeout(() => {
+        try {
+          src.stop();
+          src.disconnect();
+        } catch {
+          /* */
+        }
+      }, 380);
+    }
+  }
+
+  async function startGarden(gain = 0.38) {
+    gardenWanted = true;
+    gardenGainAmt = Math.max(0.05, Math.min(1, gain));
+    experienceBedActive = true;
+    await resumeCtx();
+    // Duck the default peace bed while the garden theme plays.
+    if (bedStyle === "peace") stopBedInternal();
+    const buf = await loadGardenTrack();
+    if (!gardenWanted || !buf) return;
+    if (gardenLoopSrc && gardenLoopGain) {
+      gardenLoopGain.gain.setValueAtTime(gardenGainAmt, now());
+      return;
+    }
+    const c = ensure();
+    const m = musicOut();
+    if (!c || !m) return;
+    stopGardenInternal();
+    gardenLoopGain = c.createGain();
+    gardenLoopGain.gain.value = gardenGainAmt;
+    gardenLoopGain.connect(m);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.connect(gardenLoopGain);
+    src.start();
+    gardenLoopSrc = src;
+  }
+
+  function stopGarden() {
+    gardenWanted = false;
+    experienceBedActive = false;
+    stopGardenInternal();
+    restorePeaceIfWanted();
+  }
+
   /** Short zipper tooth tick — one bump, pitch tracks pull speed. */
   function zip(intensity = 0.55, pitch = 1, direction: "open" | "close" = "open") {
     if (muted) return;
@@ -1607,6 +1784,10 @@ export function getSharedAudio(): SharedAudio {
     lampToggle,
     water,
     silk,
+    startRain,
+    stopRain,
+    startGarden,
+    stopGarden,
     startBed(style = "lattice") {
       ensure();
       if (style === "peace") {
@@ -1678,6 +1859,8 @@ export function getSharedAudio(): SharedAudio {
       if (songPlaying) return; // keep song if somehow destroyed mid-play
       experienceBedActive = false;
       stopZipInternal();
+      stopRain();
+      stopGarden();
       if (bedStyle === "lattice" || bedStyle === "aurora") {
         stopBedInternal();
         restorePeaceIfWanted();

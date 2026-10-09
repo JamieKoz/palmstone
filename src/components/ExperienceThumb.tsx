@@ -117,6 +117,47 @@ const THUMBS: Record<ExperienceId, ReactNode> = {
       <circle cx="24" cy="24" r="1.7" fill="#e7f7f3" />
     </Frame>
   ),
+  "infinite-garden": (
+    <Frame fill="#c5d0c8">
+      <rect y="26" width="48" height="22" fill="#7a9a68" />
+      <ellipse cx="12" cy="36" rx="7" ry="4" fill="#5a8a9a" fillOpacity="0.55" />
+      <path d="M22 40 Q23 28 21 20" fill="none" stroke="#4a7a42" strokeWidth="1.6" />
+      <ellipse cx="18" cy="26" rx="4" ry="1.8" fill="#5a8a4a" />
+      <ellipse cx="26" cy="24" rx="4" ry="1.8" fill="#5a8a4a" />
+      <circle cx="21" cy="18" r="2.4" fill="#e8c8a0" />
+      <path d="M34 40 Q36 30 38 22" fill="none" stroke="#3a6a40" strokeWidth="1.4" />
+      <path d="M38 28 L42 24 M38 28 L44 28" fill="none" stroke="#4a7a48" strokeWidth="1.1" />
+      <circle cx="8" cy="38" r="1.2" fill="#c4a574" />
+    </Frame>
+  ),
+  "infinite-sand": (
+    <Frame fill="#1a1612">
+      <path d="M0 30 C10 22, 20 34, 32 24 C40 18, 48 28, 48 28 L48 48 L0 48 Z" fill="#c4a574" />
+      <path d="M0 36 C12 30, 22 40, 36 32 C42 28, 48 34, 48 34 L48 48 L0 48 Z" fill="#d4b888" />
+      <path d="M8 22 C14 18, 18 24, 24 20" fill="none" stroke="#e2c89a" strokeWidth="1.2" />
+    </Frame>
+  ),
+  "infinite-water": (
+    <Frame fill="#1a2228">
+      <rect x="6" y="6" width="36" height="36" rx="2" fill="#6a818c" fillOpacity="0.35" />
+      <rect x="8" y="8" width="32" height="32" fill="#243038" />
+      <circle cx="16" cy="14" r="2.4" fill="#c5e4ee" fillOpacity="0.8" />
+      <circle cx="15.2" cy="13.2" r="0.7" fill="#fff" fillOpacity="0.5" />
+      <circle cx="26" cy="20" r="3.1" fill="#b7dce8" fillOpacity="0.78" />
+      <circle cx="25" cy="19" r="0.9" fill="#fff" fillOpacity="0.45" />
+      <circle cx="34" cy="28" r="3.8" fill="#d4eef4" fillOpacity="0.82" />
+      <circle cx="33" cy="26.8" r="1" fill="#fff" fillOpacity="0.4" />
+      <circle cx="20" cy="30" r="1.6" fill="#a8d0dc" fillOpacity="0.7" />
+    </Frame>
+  ),
+  "infinite-marble": (
+    <Frame fill="#0c1018">
+      <path d="M6 12 C18 12, 16 28, 28 28 C38 28, 36 40, 46 40" fill="none" stroke="#6a7a8c" strokeWidth="3.2" strokeLinecap="round" />
+      <circle cx="22" cy="20" r="3.4" fill="#8aa4c8" />
+      <circle cx="21" cy="19" r="1" fill="#fff" fillOpacity="0.45" />
+      <circle cx="34" cy="30" r="3.1" fill="#c9a66b" />
+    </Frame>
+  ),
   "sand-tray": (
     <Frame fill="#1a1612">
       <path
@@ -433,20 +474,6 @@ const THUMBS: Record<ExperienceId, ReactNode> = {
           />
         ),
       )}
-    </Frame>
-  ),
-  "fidget-cube": (
-    <Frame fill="#101216">
-      <polygon points="24,7 41,16 24,25 7,16" fill="#3a424c" />
-      <polygon points="7,16 24,25 24,43 7,34" fill="#2a3038" />
-      <polygon points="24,25 41,16 41,34 24,43" fill="#c45a4a" />
-      <polygon points="24,10 38,17.5 24,25 10,17.5" fill="#8a7d6c" fillOpacity="0.95" />
-      <circle cx="24" cy="17.5" r="1.7" fill="#d9d2c6" />
-      <circle cx="32" cy="30" r="3.1" fill="#f3ebe3" />
-      <circle cx="32" cy="24.6" r="1.7" fill="#e7ddd2" />
-      <circle cx="32" cy="35.2" r="1.7" fill="#e7ddd2" />
-      <circle cx="27.2" cy="30" r="1.7" fill="#e7ddd2" />
-      <circle cx="36.6" cy="30" r="1.7" fill="#e7ddd2" />
     </Frame>
   ),
   "fidget-spinner": (

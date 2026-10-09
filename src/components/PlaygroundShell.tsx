@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { playUiClick } from "@/components/SiteAudio";
-import { SoundLevelToggle } from "@/components/SoundLevelToggle";
+import { MusicWaveToggle } from "@/components/MusicWaveToggle";
+import { SfxToggle } from "@/components/SfxToggle";
 import { PageRevealWipe } from "@/components/PageRevealWipe";
 
 import type { ReactNode } from "react";
@@ -27,7 +28,10 @@ export function PlaygroundShell({ children }: Props) {
             <Link href="/" onClick={() => playUiClick()} className="nav-home">
               Home
             </Link>
-            <SoundLevelToggle variant="wave" className="sound-wave-btn--gallery" />
+            <div className="gallery-audio">
+              <MusicWaveToggle className="sound-wave-btn--gallery" />
+              <SfxToggle />
+            </div>
           </div>
         </header>
         {children}

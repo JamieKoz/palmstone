@@ -2,9 +2,12 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { AddToHome } from "@/components/AddToHome";
+import { useBrowserSearchParams } from "@/components/useBrowserSearchParams";
 import { playUiClick } from "@/components/SiteAudio";
-import { SoundLevelToggle } from "@/components/SoundLevelToggle";
+import { MusicWaveToggle } from "@/components/MusicWaveToggle";
+import { SfxToggle } from "@/components/SfxToggle";
 import {
   isCoverWipeRunning,
   navigateWithCoverWipe,
@@ -14,11 +17,11 @@ import { getMeta } from "@/engine/catalog";
 import { getSharedAudio } from "@/engine/audio";
 import type { EngineController } from "@/engine/runtime";
 import { NEED_LABELS, parseNeed, TIMER_PRESETS, type Need } from "@/engine/needs";
-import { applySoundLevel } from "@/engine/soundLevel";
 import {
   clearActiveSession,
   getHapticsPref,
   getMuted,
+  getMusicMuted,
   isFavourite,
   patchSessionRecord,
   pushRecent,
@@ -68,18 +71,18 @@ function formatRemain(ms: number) {
 
 export function ExperiencePlayer({ experienceId }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useBrowserSearchParams();
   const needParam = parseNeed(searchParams.get("need"));
-  const sessionMinutesParam = Number.parseInt(searchParams.get("session") ?? "", 10);
+  const sessionParsed = Number.parseInt(searchParams.get("session") ?? "", 10);
+  const sessionMinutesParam = Number.isFinite(sessionParsed) ? sessionParsed : 0;
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<EngineController | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [muted, setMuted] = useState(false);
   const [hapticsOn, setHapticsOn] = useState(true);
   const [fav, setFav] = useState(false);
   const [hintVisible, setHintVisible] = useState(true);
-  const [phase, setPhase] = useState<TransitionPhase>("enter");
+  const [phase, setPhase] = useState<TransitionPhase>("idle");
   const [zen, setZen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [timesOpen, setTimesOpen] = useState(false);
@@ -110,12 +113,19 @@ export function ExperiencePlayer({ experienceId }: Props) {
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      setPhase(isCoverWipeRunning() ? "idle" : "enter");
+      const params = new URLSearchParams(window.location.search);
+      const need = parseNeed(params.get("need"));
+      const sessionParsed = Number.parseInt(params.get("session") ?? "", 10);
+      setPhase((current) => {
+        if (isCoverWipeRunning()) return "idle";
+        if (current === "idle" || current === "exit") return current;
+        return "enter";
+      });
       setHintVisible(true);
       setReady(false);
       setError(null);
-      applySoundLevel();
-      setMuted(getMuted());
+      getSharedAudio().setMuted(getMuted());
+      getSharedAudio().setMusicMuted(getMusicMuted());
       setHapticsOn(getHapticsPref());
       setFav(isFavourite(experienceId));
       setZen(false);
@@ -127,14 +137,11 @@ export function ExperiencePlayer({ experienceId }: Props) {
       setFeedbackOpen(false);
       autoSessionStarted.current = false;
       sessionStartRef.current = Date.now();
-      needRef.current = needParam;
-      if (needParam) setLastNeed(needParam);
-      const planned =
-        Number.isFinite(sessionMinutesParam) && sessionMinutesParam > 0
-          ? sessionMinutesParam * 60_000
-          : null;
+      needRef.current = need;
+      if (need) setLastNeed(need);
+      const planned = sessionParsed > 0 ? sessionParsed * 60_000 : null;
       plannedMsRef.current = planned;
-      sessionIdRef.current = startSessionRecord(experienceId, needParam, planned);
+      sessionIdRef.current = startSessionRecord(experienceId, need, planned);
     });
     return () => {
       cancelled = true;
@@ -142,10 +149,12 @@ export function ExperiencePlayer({ experienceId }: Props) {
       if (sid) {
         patchSessionRecord(sid, {
           durationMs: Date.now() - sessionStartRef.current,
+          soundLevel: getMuted() && getMusicMuted() ? "off" : "immersive",
+          hapticsOn: getHapticsPref(),
         });
       }
     };
-  }, [experienceId, needParam, sessionMinutesParam]);
+  }, [experienceId]);
 
   useEffect(() => {
     if (!ready || autoSessionStarted.current) return;
@@ -297,13 +306,14 @@ export function ExperiencePlayer({ experienceId }: Props) {
     return () => window.clearTimeout(t);
   }, [hintVisible, experienceId, entering, exiting, ready]);
 
-  // After the first touch, get chrome out of the way — toys first.
+  // Dismiss the intro hint on the first touch — keep chrome visible.
   useEffect(() => {
     const host = hostRef.current;
     if (!host || !ready || entering) return;
-    const onFirstTouch = () => {
+    const onFirstTouch = (e: PointerEvent) => {
+      const target = e.target;
+      if (target instanceof Node && settingsRef.current?.contains(target)) return;
       setHintVisible(false);
-      setZen(true);
       setSettingsOpen(false);
     };
     host.addEventListener("pointerdown", onFirstTouch, { once: true });
@@ -493,8 +503,8 @@ export function ExperiencePlayer({ experienceId }: Props) {
                   </div>
                 )}
               </div>
-              <SoundLevelToggle variant="menu" />
-              <p className="experience-settings__privacy">Your preferences stay on this device.</p>
+              <MusicWaveToggle variant="menu" />
+              <SfxToggle variant="menu" />
               <button
                 type="button"
                 className="experience-settings__row"
@@ -539,6 +549,7 @@ export function ExperiencePlayer({ experienceId }: Props) {
                 <span>Copy link</span>
                 <span>{copied ? "Copied" : "Copy"}</span>
               </button>
+              <AddToHome variant="menu" />
               <button
                 type="button"
                 className="experience-settings__row"

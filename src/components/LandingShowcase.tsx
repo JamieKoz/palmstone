@@ -8,10 +8,10 @@ import { getMeta } from "@/engine/catalog";
 import type { ExperienceId } from "@/engine/types";
 
 const FLAGSHIPS: ExperienceId[] = [
+  "mesh-lattice",
+  "infinite-garden",
   "silk-fluid",
   "sand-tray",
-  "ripple-pool",
-  "keyboard-thock",
 ];
 
 /** First-viewport stones — tap puts one in the hand immediately. */

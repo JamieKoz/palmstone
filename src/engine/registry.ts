@@ -11,13 +11,16 @@ import { stonePolish } from "@/experiences/stone-polish";
 import { ripplePool } from "@/experiences/ripple-pool";
 import { sliderLoom } from "@/experiences/slider-loom";
 import { meshLattice } from "@/experiences/mesh-lattice";
+import { infiniteGarden } from "@/experiences/infinite-garden";
+import { infiniteSand } from "@/experiences/infinite-sand";
+import { infiniteWater } from "@/experiences/infinite-water";
+import { infiniteMarble } from "@/experiences/infinite-marble";
 import { penClicker } from "@/experiences/pen-clicker";
 import { lightSwitch } from "@/experiences/light-switch";
 import { keyboardThock } from "@/experiences/keyboard-thock";
 import { mouseClick } from "@/experiences/mouse-click";
 import { bigButton } from "@/experiences/big-button";
 import { bubbleWrap } from "@/experiences/bubble-wrap";
-import { fidgetCube } from "@/experiences/fidget-cube";
 import { fidgetSpinner } from "@/experiences/fidget-spinner";
 import { zipper } from "@/experiences/zipper";
 import { lampToggle } from "@/experiences/lamp-toggle";
@@ -25,6 +28,10 @@ import { lampToggle } from "@/experiences/lamp-toggle";
 /** Client-only module registry. */
 const MODULES: ExperienceModule[] = [
   meshLattice,
+  infiniteGarden,
+  infiniteSand,
+  infiniteWater,
+  infiniteMarble,
   sandTray,
   silkFluid,
   ripplePool,
@@ -42,7 +49,6 @@ const MODULES: ExperienceModule[] = [
   mouseClick,
   bigButton,
   bubbleWrap,
-  fidgetCube,
   fidgetSpinner,
   zipper,
 ];

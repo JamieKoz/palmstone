@@ -23,8 +23,13 @@ function homeHint() {
   return "Open the browser menu and choose Install or Add to Home Screen.";
 }
 
+type Props = {
+  /** Menu row inside experience settings. */
+  variant?: "link" | "menu";
+};
+
 /** Quiet control that installs the app, or explains the browser's own add-to-home step. */
-export function AddToHome() {
+export function AddToHome({ variant = "link" }: Props) {
   const promptRef = useRef<InstallPrompt | null>(null);
   const [installed, setInstalled] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -48,24 +53,34 @@ export function AddToHome() {
 
   if (installed) return null;
 
+  const onClick = () => {
+    playUiClick();
+    const prompt = promptRef.current;
+    if (prompt) {
+      promptRef.current = null;
+      void prompt.prompt();
+      setHint(null);
+      return;
+    }
+    setHint(homeHint());
+  };
+
+  if (variant === "menu") {
+    return (
+      <div className="add-home add-home--menu">
+        <button type="button" className="experience-settings__row" onClick={onClick}>
+          <span>Add to Home</span>
+          <span>{hint ? "How" : "Install"}</span>
+        </button>
+        {hint ? <p className="add-home__hint">{hint}</p> : null}
+      </div>
+    );
+  }
+
   return (
     <span className="add-home">
-      <button
-        type="button"
-        className="add-home__btn"
-        onClick={() => {
-          playUiClick();
-          const prompt = promptRef.current;
-          if (prompt) {
-            promptRef.current = null;
-            void prompt.prompt();
-            setHint(null);
-            return;
-          }
-          setHint(homeHint());
-        }}
-      >
-        Add to home
+      <button type="button" className="add-home__btn" onClick={onClick}>
+        Add to Home
       </button>
       {hint && <span className="add-home__hint">{hint}</span>}
     </span>
